@@ -102,7 +102,7 @@ class MainWindow(QMainWindow):
             self.tray_icon.showMessage(
                 "XenShoot",
                 "Hello, I'm here! Click icon in the tray to take a screenshot or click with a right button to see more options.",
-                QSystemTrayIcon.Information,
+                QSystemTrayIcon.NoIcon,  # Use custom icon from tray instead of default
                 3000  # Show for 3 seconds
             )
         
