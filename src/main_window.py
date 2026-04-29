@@ -93,6 +93,19 @@ class MainWindow(QMainWindow):
         self.tray_icon.setToolTip("XenShoot - Screenshot Tool")
         self.tray_icon.show()
         
+        # Show welcome notification when app starts
+        self.show_startup_notification()
+        
+    def show_startup_notification(self):
+        """Show notification when app starts"""
+        if self.tray_icon.supportsMessages():
+            self.tray_icon.showMessage(
+                "XenShoot",
+                "Hello, I'm here! Click icon in the tray to take a screenshot or click with a right button to see more options.",
+                QSystemTrayIcon.Information,
+                3000  # Show for 3 seconds
+            )
+        
     def start_capture(self):
         """Start area screenshot capture"""
         try:
