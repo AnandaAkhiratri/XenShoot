@@ -40,6 +40,10 @@ class Annotation:
 class RectangleAnnotation(Annotation):
     def draw(self, painter, offset=QPoint(0, 0)):
         if len(self.points) >= 2:
+            # Enable antialiasing for smooth rectangles
+            painter.setRenderHint(QPainter.Antialiasing, True)
+            painter.setRenderHint(QPainter.SmoothPixmapTransform, True)
+            
             # Use relative coordinates directly
             rect = QRect(self.points[0], self.points[-1]).normalized()
             
@@ -47,14 +51,21 @@ class RectangleAnnotation(Annotation):
             if rect.width() > 2000 or rect.height() > 2000:
                 return
             
-            painter.setPen(QPen(self.color, self.thickness))
+            painter.setPen(QPen(self.color, self.thickness, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
             painter.setBrush(Qt.NoBrush)
             painter.drawRect(rect)
+            
+            # Reset antialiasing
+            painter.setRenderHint(QPainter.Antialiasing, False)
 
 class FilledRectangleAnnotation(Annotation):
     """Filled rectangle annotation - solid filled rectangle"""
     def draw(self, painter, offset=QPoint(0, 0)):
         if len(self.points) >= 2:
+            # Enable antialiasing for smooth rectangles
+            painter.setRenderHint(QPainter.Antialiasing, True)
+            painter.setRenderHint(QPainter.SmoothPixmapTransform, True)
+            
             print(f"[DEBUG FILLED_RECT] Drawing: points[0]=({self.points[0].x()}, {self.points[0].y()}), points[-1]=({self.points[-1].x()}, {self.points[-1].y()})")
             
             # Use relative coordinates directly
@@ -71,13 +82,20 @@ class FilledRectangleAnnotation(Annotation):
             color = QColor(self.color)
             color.setAlpha(255)  # 100% SOLID - not transparent
             
-            painter.setPen(QPen(self.color, self.thickness))
+            painter.setPen(QPen(self.color, self.thickness, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
             painter.setBrush(QBrush(color))  # Fill with SOLID color
             painter.drawRect(rect)
+            
+            # Reset antialiasing
+            painter.setRenderHint(QPainter.Antialiasing, False)
 
 class CircleAnnotation(Annotation):
     def draw(self, painter, offset=QPoint(0, 0)):
         if len(self.points) >= 2:
+            # Enable antialiasing for smooth circles
+            painter.setRenderHint(QPainter.Antialiasing, True)
+            painter.setRenderHint(QPainter.SmoothPixmapTransform, True)
+            
             # Use relative coordinates directly
             rect = QRect(self.points[0], self.points[-1]).normalized()
             
@@ -85,16 +103,26 @@ class CircleAnnotation(Annotation):
             if rect.width() > 2000 or rect.height() > 2000:
                 return
             
-            painter.setPen(QPen(self.color, self.thickness))
+            painter.setPen(QPen(self.color, self.thickness, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
             painter.setBrush(Qt.NoBrush)
             painter.drawEllipse(rect)
+            
+            # Reset antialiasing
+            painter.setRenderHint(QPainter.Antialiasing, False)
 
 class LineAnnotation(Annotation):
     def draw(self, painter, offset=QPoint(0, 0)):
         if len(self.points) >= 2:
-            painter.setPen(QPen(self.color, self.thickness))
+            # Enable antialiasing for smooth lines
+            painter.setRenderHint(QPainter.Antialiasing, True)
+            painter.setRenderHint(QPainter.SmoothPixmapTransform, True)
+            
+            painter.setPen(QPen(self.color, self.thickness, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
             # Use relative coordinates directly
             painter.drawLine(self.points[0], self.points[-1])
+            
+            # Reset antialiasing
+            painter.setRenderHint(QPainter.Antialiasing, False)
 
 class ArrowAnnotation(Annotation):
     def draw(self, painter, offset=QPoint(0, 0)):
@@ -140,18 +168,32 @@ class ArrowAnnotation(Annotation):
 class PenAnnotation(Annotation):
     def draw(self, painter, offset=QPoint(0, 0)):
         if len(self.points) >= 2:
+            # Enable antialiasing for smooth pen strokes
+            painter.setRenderHint(QPainter.Antialiasing, True)
+            painter.setRenderHint(QPainter.SmoothPixmapTransform, True)
+            
             painter.setPen(QPen(self.color, self.thickness, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
             for i in range(len(self.points) - 1):
                 painter.drawLine(self.points[i], self.points[i + 1])
+            
+            # Reset antialiasing
+            painter.setRenderHint(QPainter.Antialiasing, False)
 
 class HighlighterAnnotation(Annotation):
     def draw(self, painter, offset=QPoint(0, 0)):
         if len(self.points) >= 2:
+            # Enable antialiasing for smooth highlighter
+            painter.setRenderHint(QPainter.Antialiasing, True)
+            painter.setRenderHint(QPainter.SmoothPixmapTransform, True)
+            
             color = QColor(self.color)
             color.setAlpha(80)
             painter.setPen(QPen(color, self.thickness * 3, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
             for i in range(len(self.points) - 1):
                 painter.drawLine(self.points[i], self.points[i + 1])
+            
+            # Reset antialiasing
+            painter.setRenderHint(QPainter.Antialiasing, False)
 
 class TextAnnotation(Annotation):
     def __init__(self, tool_type, color, thickness):
@@ -161,11 +203,20 @@ class TextAnnotation(Annotation):
         
     def draw(self, painter, offset=QPoint(0, 0)):
         if self.text and not self.position.isNull():
+            # Enable antialiasing for smooth text
+            painter.setRenderHint(QPainter.Antialiasing, True)
+            painter.setRenderHint(QPainter.TextAntialiasing, True)
+            painter.setRenderHint(QPainter.SmoothPixmapTransform, True)
+            
             painter.setPen(QPen(self.color))
             font = QFont("Arial", 32, QFont.Normal)  # 32px, normal weight as user requested
             painter.setFont(font)
             # Use relative coordinates directly
             painter.drawText(self.position, self.text)
+            
+            # Reset antialiasing
+            painter.setRenderHint(QPainter.Antialiasing, False)
+            painter.setRenderHint(QPainter.TextAntialiasing, False)
 
 class NumberAnnotation(Annotation):
     """Number counter annotation - displays numbered circles"""

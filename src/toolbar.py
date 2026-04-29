@@ -2,7 +2,7 @@
 Toolbar for annotation tools - Professional icons
 """
 
-from PyQt5.QtWidgets import (QWidget, QHBoxLayout, QPushButton, QColorDialog, 
+from PyQt5.QtWidgets import (QWidget, QHBoxLayout, QPushButton, 
                              QSpinBox, QLabel, QVBoxLayout, QStyle)
 from PyQt5.QtCore import Qt, QSize
 from PyQt5.QtGui import QPainter, QColor, QPen, QFont, QPainterPath, QIcon, QPixmap, QBrush
@@ -99,28 +99,6 @@ class Toolbar(QWidget):
             btn.clicked.connect(make_tool_handler(tool_type))
             self.tools[tool_type] = btn
             layout.addWidget(btn)
-        
-        # Color picker button
-        self.color_btn = QPushButton("⬤")
-        self.color_btn.setToolTip("Color Picker")
-        self.color_btn.setStyleSheet("""
-            QPushButton {
-                background-color: rgb(0, 10, 82);
-                color: rgb(245, 203, 17);
-                font-size: 14px;
-                border-radius: 18px;
-                min-width: 36px;
-                min-height: 36px;
-                max-width: 36px;
-                max-height: 36px;
-            }
-            QPushButton:hover {
-                background-color: rgb(0, 20, 102);
-                color: rgb(245, 203, 17);
-            }
-        """)
-        self.color_btn.clicked.connect(self.pick_color)
-        layout.addWidget(self.color_btn)
         
         # Undo button with icon
         undo_btn = QPushButton()
@@ -736,28 +714,6 @@ class Toolbar(QWidget):
         self.annotation_manager.set_tool(tool_type)
         print(f"[TOOLBAR] Tool selected: {tool_type}")
         
-    def pick_color(self):
-        """Open color picker dialog"""
-        color = QColorDialog.getColor()
-        if color.isValid():
-            self.annotation_manager.set_color(color)
-            # Update button color to show selected color
-            self.color_btn.setStyleSheet(f"""
-                QPushButton {{
-                    background-color: {color.name()};
-                    color: white;
-                    font-size: 14px;
-                    border-radius: 18px;
-                    min-width: 36px;
-                    min-height: 36px;
-                    max-width: 36px;
-                    max-height: 36px;
-                }}
-                QPushButton:hover {{
-                    background-color: {color.lighter(110).name()};
-                }}
-            """)
-            
     def change_thickness(self, value):
         """Change line thickness"""
         self.annotation_manager.set_thickness(value)
