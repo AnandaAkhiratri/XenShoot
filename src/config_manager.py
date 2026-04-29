@@ -41,7 +41,7 @@ class ConfigManager:
             'backblaze_bucket_name': 'XenShot',
             
             # Laravel API Integration
-            'laravel_api_url': 'http://127.0.0.1:8000',
+            'laravel_api_url': 'https://xenshot.cloud',
             'laravel_user_id': 1,  # Default user ID for testing
             
             # Other services (optional)
