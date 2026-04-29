@@ -49,8 +49,9 @@ test_*.py
 debug_*.py
 check_*.py
 
-# Build files
-*.spec
+# Build files (keep .spec, exclude output)
+build/
+dist/
 *.exe
 
 # Temporary files
