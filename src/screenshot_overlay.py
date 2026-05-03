@@ -10,6 +10,47 @@ from .toolbar import Toolbar
 from .uploader import ImageUploader
 
 
+# ── Shortcut matching helper ──────────────────────────────────────────────────
+
+_KEY_NAME_MAP = {
+    'return': Qt.Key_Return, 'enter': Qt.Key_Return,
+    'escape': Qt.Key_Escape,
+    'backspace': Qt.Key_Backspace,
+    'delete': Qt.Key_Delete,
+    'tab': Qt.Key_Tab,
+    'space': Qt.Key_Space,
+    'f1':  Qt.Key_F1,  'f2':  Qt.Key_F2,  'f3':  Qt.Key_F3,
+    'f4':  Qt.Key_F4,  'f5':  Qt.Key_F5,  'f6':  Qt.Key_F6,
+    'f7':  Qt.Key_F7,  'f8':  Qt.Key_F8,  'f9':  Qt.Key_F9,
+    'f10': Qt.Key_F10, 'f11': Qt.Key_F11, 'f12': Qt.Key_F12,
+}
+
+def _key_match(event, shortcut_str):
+    """Return True if QKeyEvent matches shortcut string (e.g. 'ctrl+z', 'p', 'return')."""
+    if not shortcut_str:
+        return False
+    parts = shortcut_str.lower().strip().split('+')
+    expected_mods = Qt.NoModifier
+    key_part = None
+    for p in parts:
+        p = p.strip()
+        if   p == 'ctrl':  expected_mods |= Qt.ControlModifier
+        elif p == 'shift': expected_mods |= Qt.ShiftModifier
+        elif p == 'alt':   expected_mods |= Qt.AltModifier
+        else:              key_part = p
+    if key_part is None:
+        return False
+    if key_part in _KEY_NAME_MAP:
+        expected_key = _KEY_NAME_MAP[key_part]
+    elif len(key_part) == 1:
+        expected_key = ord(key_part.upper())
+    else:
+        return False
+    return event.key() == expected_key and event.modifiers() == expected_mods
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+
 class PinnedImageWindow(QLabel):
     """Draggable pinned image window that closes on ESC"""
     
@@ -72,10 +113,10 @@ class ScreenshotOverlay(QWidget):
         # Fullscreen overlay
         self.setWindowFlags(
             Qt.WindowStaysOnTopHint | 
-            Qt.FramelessWindowHint | 
-            Qt.Tool
+            Qt.FramelessWindowHint
         )
         self.setAttribute(Qt.WA_TranslucentBackground)
+        self.setMouseTracking(True)  # receive mouseMoveEvent even without button press
         self.showFullScreen()
         self.setCursor(Qt.CrossCursor)
         
@@ -88,15 +129,44 @@ class ScreenshotOverlay(QWidget):
         self.start_point = QPoint()
         self.end_point = QPoint()
         self.is_editing = False
-        self.is_moving_selection = False  # NEW: for move mode
-        self.move_start_pos = QPoint()  # NEW: starting position for move
-        
+        self.is_moving_selection = False
+        self.move_start_pos = QPoint()
+        self.resize_handle = None  # active corner being dragged: 'tl','tr','bl','br'
+
         self.annotation_manager = AnnotationManager()
         self.toolbar = None
-        self.size_indicator = None  # NEW: Size indicator label
-        self.text_input = None  # For inline text input
+        self.size_indicator = None
+        # Text input state (no QLineEdit — handled directly in overlay to avoid focus issues)
+        self.text_input = None          # kept for legacy checks; always None now
+        self.text_active = False        # whether inline text entry is active
+        self.text_buffer = ""           # characters typed so far
+        self.text_cursor = 0            # cursor position inside text_buffer
+        self.text_pos = QPoint()        # screen position where text is drawn
+        self.text_color = QColor(255, 255, 255)
         self.uploader = ImageUploader(self.config)
         
+    def _get_handle_at(self, pos):
+        """Return handle id ('tl','tr','bl','br') if pos is within hit-area of a corner handle, else None."""
+        if self.selection_rect.isNull():
+            return None
+        hit = 12  # hit-area radius in px
+        corners = {
+            'tl': QPoint(self.selection_rect.left(),  self.selection_rect.top()),
+            'tr': QPoint(self.selection_rect.right(), self.selection_rect.top()),
+            'bl': QPoint(self.selection_rect.left(),  self.selection_rect.bottom()),
+            'br': QPoint(self.selection_rect.right(), self.selection_rect.bottom()),
+        }
+        for handle_id, corner in corners.items():
+            if abs(pos.x() - corner.x()) <= hit and abs(pos.y() - corner.y()) <= hit:
+                return handle_id
+        return None
+
+    def _resize_cursor_for(self, handle_id):
+        """Return the appropriate resize cursor for a corner handle."""
+        if handle_id in ('tl', 'br'):
+            return Qt.SizeFDiagCursor   # ↖↘
+        return Qt.SizeBDiagCursor       # ↗↙
+
     def capture_screen(self):
         """Capture screen - primary screen only for simplicity"""
         # Get primary screen
@@ -119,8 +189,9 @@ class ScreenshotOverlay(QWidget):
         # Draw the screenshot
         painter.drawPixmap(0, 0, self.screen_pixmap)
         
-        # Draw dark overlay
-        painter.fillRect(self.rect(), QColor(0, 0, 0, 100))
+        # Draw dark overlay (opacity from config)
+        opacity = self.config.get('overlay_opacity', 100)
+        painter.fillRect(self.rect(), QColor(0, 0, 0, opacity))
         
         if not self.selection_rect.isNull():
             # Clear selected area
@@ -144,39 +215,47 @@ class ScreenshotOverlay(QWidget):
                 painter.restore()
                 
                 painter.setClipping(False)
+                
+                # Draw live text input preview
+                if self.text_active:
+                    from PyQt5.QtGui import QFont, QFontMetrics
+                    font_size = self.annotation_manager.text_font_size
+                    font = QFont("Arial", font_size)
+                    painter.setFont(font)
+                    fm = QFontMetrics(font)
+                    before_cursor = self.text_buffer[:self.text_cursor]
+                    caret_x = self.text_pos.x() + fm.horizontalAdvance(before_cursor)
+                    baseline_y = self.text_pos.y() + fm.ascent()
+                    # Draw text
+                    painter.setPen(self.text_color)
+                    painter.drawText(self.text_pos.x(), baseline_y, self.text_buffer)
+                    # Draw caret line
+                    painter.setPen(QPen(self.text_color, 2))
+                    painter.drawLine(caret_x, self.text_pos.y(), caret_x, self.text_pos.y() + fm.height())
             
-            # Draw selection border - solid and bold
-            painter.setCompositionMode(QPainter.CompositionMode_SourceOver)  # Ensure normal mode
-            painter.setPen(QPen(QColor(245, 203, 17), 3))  # Thicker border (3px) - Yellow/Gold
-            painter.setBrush(Qt.NoBrush)  # No fill for border
+            # Draw selection border (color from config)
+            sel_color = QColor(self.config.get('selection_color', '#f5cb11'))
+            painter.setCompositionMode(QPainter.CompositionMode_SourceOver)
+            painter.setPen(QPen(sel_color, 3))
+            painter.setBrush(Qt.NoBrush)
             painter.drawRect(self.selection_rect)
-            
-            # Draw corner handles - SOLID BLUE squares (tebal/filled)
-            painter.save()  # Save painter state
-            
-            handle_size = 10  # Larger handles
-            
-            # Draw each handle as solid blue filled rectangle
+
+            # Draw corner handles
+            painter.save()
+            handle_size = 10
             handles_positions = [
-                # Top-left
-                (self.selection_rect.x() - handle_size // 2, 
+                (self.selection_rect.x() - handle_size // 2,
                  self.selection_rect.y() - handle_size // 2),
-                # Top-right
                 (self.selection_rect.x() + self.selection_rect.width() - handle_size // 2,
                  self.selection_rect.y() - handle_size // 2),
-                # Bottom-left
                 (self.selection_rect.x() - handle_size // 2,
                  self.selection_rect.y() + self.selection_rect.height() - handle_size // 2),
-                # Bottom-right
                 (self.selection_rect.x() + self.selection_rect.width() - handle_size // 2,
                  self.selection_rect.y() + self.selection_rect.height() - handle_size // 2),
             ]
-            
             for x, y in handles_positions:
-                # Fill with SOLID BLUE - no transparency!
-                painter.fillRect(x, y, handle_size, handle_size, QColor(245, 203, 17))  # Yellow/Gold handles
-            
-            painter.restore()  # Restore painter state
+                painter.fillRect(x, y, handle_size, handle_size, sel_color)
+            painter.restore()
             
             # Draw size info with background (Flameshot style)
             if self.is_selecting:
@@ -212,26 +291,33 @@ class ScreenshotOverlay(QWidget):
                 
     def mousePressEvent(self, event):
         if event.button() == Qt.LeftButton:
+            # If text input is active and user clicks elsewhere, commit the text
+            if self.text_active:
+                self._commit_pending_text()
+
             if not self.is_editing:
                 # Start selection
                 self.is_selecting = True
                 self.start_point = event.pos()
                 self.end_point = event.pos()
-            elif self.is_moving_selection:
-                # Start moving selection
-                self.move_start_pos = event.pos()
-            else:
-                # Check if TEXT tool is selected - show text input
-                from .annotation_tools import ToolType
-                if self.annotation_manager.current_tool == ToolType.TEXT:
-                    self.show_text_input_dialog(event.pos())
+            elif self.is_editing:
+                # Check corner handles first (resize takes priority)
+                handle = self._get_handle_at(event.pos())
+                if handle:
+                    self.resize_handle = handle
+                    self.setCursor(self._resize_cursor_for(handle))
+                elif self.is_moving_selection:
+                    self.move_start_pos = event.pos()
                 else:
-                    # Annotation tool interaction
-                    self.annotation_manager.mouse_press(event.pos(), self.selection_rect.topLeft())
-                self.update()
+                    # Annotation tools
+                    from .annotation_tools import ToolType
+                    if self.annotation_manager.current_tool == ToolType.TEXT:
+                        self.show_text_input_dialog(event.pos())
+                    else:
+                        self.annotation_manager.mouse_press(event.pos(), self.selection_rect.topLeft())
+                    self.update()
         elif event.button() == Qt.RightButton:
             if self.is_editing:
-                # Cancel or go back to selection
                 self.cancel_capture()
                 
     def mouseMoveEvent(self, event):
@@ -239,18 +325,44 @@ class ScreenshotOverlay(QWidget):
             self.end_point = event.pos()
             self.selection_rect = QRect(self.start_point, self.end_point).normalized()
             self.update()
+        elif self.resize_handle and self.is_editing:
+            # Resize selection by dragging a corner handle
+            pos = event.pos()
+            r = QRect(self.selection_rect)
+            min_size = 20
+
+            if 't' in self.resize_handle:
+                r.setTop(min(pos.y(), r.bottom() - min_size))
+            if 'b' in self.resize_handle:
+                r.setBottom(max(pos.y(), r.top() + min_size))
+            if 'l' in self.resize_handle:
+                r.setLeft(min(pos.x(), r.right() - min_size))
+            if 'r' in self.resize_handle:
+                r.setRight(max(pos.x(), r.left() + min_size))
+
+            self.selection_rect = r
+            if self.toolbar:
+                self.position_toolbar()
+            self.update_size_indicator()
+            self.update()
         elif self.is_moving_selection and self.is_editing:
             # Move the selection rect
             delta = event.pos() - self.move_start_pos
             self.selection_rect.translate(delta)
             self.move_start_pos = event.pos()
-            
-            # Reposition toolbar and size indicator
             if self.toolbar:
                 self.position_toolbar()
-            
             self.update()
         elif self.is_editing:
+            # Update cursor when hovering over corner handles
+            if not self.annotation_manager.is_drawing:
+                handle = self._get_handle_at(event.pos())
+                if handle:
+                    self.setCursor(self._resize_cursor_for(handle))
+                elif self.is_moving_selection:
+                    self.setCursor(Qt.SizeAllCursor)
+                else:
+                    self.setCursor(Qt.ArrowCursor)
             self.annotation_manager.mouse_move(event.pos(), self.selection_rect.topLeft())
             self.update()
             
@@ -260,6 +372,13 @@ class ScreenshotOverlay(QWidget):
                 self.is_selecting = False
                 if self.selection_rect.width() > 10 and self.selection_rect.height() > 10:
                     self.start_editing()
+            elif self.resize_handle:
+                # Finish resizing
+                self.resize_handle = None
+                self.setCursor(Qt.ArrowCursor)
+                self.position_toolbar()
+                self.update_size_indicator()
+                self.update()
             elif self.is_editing:
                 # Check if we just finished a blur or invert annotation
                 from .annotation_tools import BlurAnnotation, InvertAnnotation, ToolType
@@ -300,46 +419,112 @@ class ScreenshotOverlay(QWidget):
                 self.update()
                 
     def keyPressEvent(self, event):
-        # Handle ESC for text input cancellation
-        if event.key() == Qt.Key_Escape:
-            if self.text_input and self.text_input.isVisible():
-                # Cancel text input
-                self.text_input.close()
-                self.text_input = None
+        # When text input is active, all keys are handled here (no QLineEdit)
+        if self.text_active:
+            print(f"[TEXT] keyPressEvent: key={event.key()}, text='{event.text()}', buffer='{self.text_buffer}'")
+            key = event.key()
+            if key == Qt.Key_Escape:
+                self.text_active = False
+                self.text_buffer = ""
                 self.annotation_manager.current_annotation = None
                 self.annotation_manager.is_drawing = False
                 self.update()
-            else:
-                self.cancel_capture()
-        elif event.key() == Qt.Key_Return or event.key() == Qt.Key_Enter:
-            # Don't finish capture if text input is active
-            if self.text_input and self.text_input.isVisible():
-                return  # Let text input handle it
-            elif self.is_editing:
+            elif key in (Qt.Key_Return, Qt.Key_Enter):
+                self.finish_text_input()
+            elif key == Qt.Key_Backspace:
+                if self.text_cursor > 0:
+                    self.text_buffer = self.text_buffer[:self.text_cursor - 1] + self.text_buffer[self.text_cursor:]
+                    self.text_cursor -= 1
+                    self.update()
+            elif key == Qt.Key_Delete:
+                if self.text_cursor < len(self.text_buffer):
+                    self.text_buffer = self.text_buffer[:self.text_cursor] + self.text_buffer[self.text_cursor + 1:]
+                    self.update()
+            elif key == Qt.Key_Left:
+                self.text_cursor = max(0, self.text_cursor - 1)
+                self.update()
+            elif key == Qt.Key_Right:
+                self.text_cursor = min(len(self.text_buffer), self.text_cursor + 1)
+                self.update()
+            elif key == Qt.Key_Home:
+                self.text_cursor = 0
+                self.update()
+            elif key == Qt.Key_End:
+                self.text_cursor = len(self.text_buffer)
+                self.update()
+            elif event.text() and not (event.modifiers() & Qt.ControlModifier):
+                self.text_buffer = self.text_buffer[:self.text_cursor] + event.text() + self.text_buffer[self.text_cursor:]
+                self.text_cursor += len(event.text())
+                self.update()
+            return
+
+        # Normal key handling (text input not active)
+        cfg = self.config
+        if _key_match(event, cfg.get('shortcut_cancel', 'escape')):
+            self.cancel_capture()
+        elif _key_match(event, cfg.get('shortcut_save', 'return')):
+            if self.is_editing:
                 self.finish_capture()
-        elif event.key() == Qt.Key_Z and event.modifiers() == Qt.ControlModifier:
+        elif _key_match(event, cfg.get('shortcut_undo', 'ctrl+z')):
             if self.is_editing:
                 self.annotation_manager.undo()
                 self.update()
-        elif event.key() == Qt.Key_Y and event.modifiers() == Qt.ControlModifier:
+        elif _key_match(event, cfg.get('shortcut_redo', 'ctrl+y')):
             if self.is_editing:
                 self.annotation_manager.redo()
                 self.update()
+        elif _key_match(event, cfg.get('shortcut_copy', 'ctrl+c')):
+            if self.is_editing:
+                self.copy_to_clipboard()
+        elif self.is_editing:
+            from .annotation_tools import ToolType
+            _tool_map = [
+                ('shortcut_pen',         'p',  ToolType.PEN),
+                ('shortcut_line',        'l',  ToolType.LINE),
+                ('shortcut_arrow',       'a',  ToolType.ARROW),
+                ('shortcut_rect',        'r',  ToolType.RECTANGLE),
+                ('shortcut_circle',      'c',  ToolType.CIRCLE),
+                ('shortcut_highlighter', 'm',  ToolType.HIGHLIGHTER),
+                ('shortcut_text',        't',  ToolType.TEXT),
+                ('shortcut_number',      'n',  ToolType.NUMBER),
+                ('shortcut_blur',        'b',  ToolType.BLUR),
+                ('shortcut_invert',      'i',  ToolType.INVERT),
+            ]
+            matched_tool = False
+            for cfg_key, default, tool_type in _tool_map:
+                if _key_match(event, cfg.get(cfg_key, default)):
+                    if self.toolbar:
+                        self.toolbar.select_tool(tool_type)
+                    matched_tool = True
+                    break
+            # Selection nudge with Shift+Arrow (fixed, not configurable)
+            if not matched_tool and event.modifiers() == Qt.ShiftModifier:
+                nudge = {
+                    Qt.Key_Left:  QPoint(-1, 0),
+                    Qt.Key_Right: QPoint(1, 0),
+                    Qt.Key_Up:    QPoint(0, -1),
+                    Qt.Key_Down:  QPoint(0, 1),
+                }
+                if event.key() in nudge:
+                    self.selection_rect = self.selection_rect.translated(nudge[event.key()])
+                    if self.toolbar:
+                        self.position_toolbar()
+                    self.update_size_indicator()
+                    self.update()
                 
     def start_editing(self):
         """Start annotation mode"""
         self.is_editing = True
         self.setCursor(Qt.ArrowCursor)
         
-        # Show toolbar
         if self.toolbar is None:
             self.toolbar = Toolbar(self, self.annotation_manager)
-            
-        # Position toolbar at bottom of selection
-        self.position_toolbar()
-        self.toolbar.show()
         
-        # Create and show size indicator
+        # Show first so style sheets are applied and sizeHint() is accurate
+        self.toolbar.show()
+        # Then position using correct button sizes
+        self.position_toolbar()
+        
         self.create_size_indicator()
         self.update_size_indicator()
         
@@ -367,43 +552,77 @@ class ScreenshotOverlay(QWidget):
     def update_size_indicator(self):
         """Update size indicator with current selection dimensions"""
         if self.size_indicator and not self.selection_rect.isNull():
-            size_text = f"{self.selection_rect.width()} × {self.selection_rect.height()}"
+            size_text = f"{self.selection_rect.width()} × {self.selection_rect.height()} px"
             self.size_indicator.setText(size_text)
             self.size_indicator.adjustSize()
-            
-            # Position above toolbar, centered
+
             if self.toolbar:
-                indicator_x = self.selection_rect.center().x() - self.size_indicator.width() // 2
-                indicator_y = self.selection_rect.top() - self.size_indicator.height() - 8
-                
-                # Keep on screen
-                if indicator_y < 10:
-                    indicator_y = self.selection_rect.top() + 10
-                    
+                top_bar = self.toolbar.bars['top']
+                indicator_x = top_bar.x() + top_bar.width() // 2 - self.size_indicator.width() // 2
+                indicator_y = top_bar.y() - self.size_indicator.height() - 4
+                if indicator_y < 5:
+                    indicator_y = top_bar.y() + top_bar.height() + 4
+                indicator_x = max(5, min(indicator_x, self.width() - self.size_indicator.width() - 5))
                 self.size_indicator.move(indicator_x, indicator_y)
                 self.size_indicator.show()
+                self.size_indicator.repaint()
                 
     def position_toolbar(self):
-        """Position toolbar centered below selection box"""
+        """Position 3 responsive toolbar zones around the selection."""
         if self.toolbar is None:
             return
-        
-        # Make sure toolbar geometry is updated
-        self.toolbar.adjustSize()
-        self.toolbar.updateGeometry()
-        
-        # Center horizontally relative to selection box
-        toolbar_x = self.selection_rect.center().x() - self.toolbar.width() // 2
-        toolbar_y = self.selection_rect.bottom() + 10  # 10px below selection
-        
-        # If toolbar goes off screen bottom, put it above selection
-        if toolbar_y + self.toolbar.height() > self.height():
-            toolbar_y = self.selection_rect.top() - self.toolbar.height() - 10
-            
-        self.toolbar.move(toolbar_x, toolbar_y)
+
+        r   = self.selection_rect
+        sw  = self.width()
+        sh  = self.height()
+        gap = 8
+
+        bars  = self.toolbar.bars
+        top   = bars['top']
+        right = bars['right']
+        bot   = bars['bot']
+
+        # ── TOP bar: above selection, centered to selection ────────────────
+        max_w = max(r.width(), 44)
+        top.set_max_w(max_w)
+        # Center the bar over the selection horizontally
+        tx = r.left() + (r.width() - top.width()) // 2
+        tx = max(5, min(tx, sw - top.width() - 5))
+        ty = r.top() - top.height() - gap
+        if ty < 5:
+            ty = r.bottom() + gap   # no room above → go below
+        top.move(tx, ty)
+        top.repaint()
+
+        # ── RIGHT bar: right of selection, height-constrained to selection ─
+        max_h = max(r.height(), 44)
+        right.set_max_h(max_h)
+        rx = r.right() + gap
+        if rx + right.width() > sw - 5:
+            rx = r.left() - right.width() - gap  # no room right → go left
+        rx = max(5, rx)
+        # Center the bar vertically beside the selection
+        ry = r.top() + (r.height() - right.height()) // 2
+        ry = max(5, min(ry, sh - right.height() - 5))
+        right.move(rx, ry)
+        right.repaint()
+
+        # ── BOT bar: below selection, centered to selection ────────────────
+        bot.set_max_w(max_w)
+        bx = r.left() + (r.width() - bot.width()) // 2
+        bx = max(5, min(bx, sw - bot.width() - 5))
+        by = r.bottom() + gap
+        if by + bot.height() > sh - 5:
+            by = r.top() - bot.height() - gap  # no room below → go above
+            if by < 5:
+                by = r.bottom() - bot.height() - gap
+        bot.move(bx, by)
+        bot.repaint()
         
     def finish_capture(self):
         """Finish capture and upload"""
+        print("[SAVE] finish_capture called")
+        self._commit_pending_text()
         try:
             # Create final image
             final_pixmap = QPixmap(self.selection_rect.size())
@@ -500,28 +719,83 @@ class ScreenshotOverlay(QWidget):
             self.close()
         
     def save_local(self, pixmap):
-        """Save screenshot to local folder"""
+        """Save screenshot pixmap to local folder using config template, return filepath"""
         import os
         from datetime import datetime
-        
-        save_path = self.config.get('local_save_path', '')
-        if not save_path:
-            from pathlib import Path
-            save_path = str(Path.home() / "Pictures" / "XenShoot")
-        
-        # Create directory if not exists
+        from pathlib import Path
+
+        save_path = self.config.get('local_save_path', '') or str(Path.home() / "Pictures" / "XenShoot")
         os.makedirs(save_path, exist_ok=True)
-        
-        # Generate filename with timestamp
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"xenshoot_{timestamp}.png"
-        filepath = os.path.join(save_path, filename)
-        
-        # Save
-        pixmap.save(filepath, "PNG")
+
+        template = self.config.get('filename_template', 'xenshoot_%Y-%m-%d_%H-%M-%S')
+        ext      = self.config.get('preferred_extension', 'png').lower().lstrip('.')
+        try:
+            name = datetime.now().strftime(template)
+        except Exception:
+            name = f"xenshoot_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+
+        filepath = os.path.join(save_path, f"{name}.{ext}")
+        fmt = "JPEG" if ext in ('jpg', 'jpeg') else "PNG"
+        quality = self.config.get('jpeg_quality', 90) if fmt == "JPEG" else -1
+        pixmap.save(filepath, fmt, quality)
+        return filepath
+
+    def save_to_local_only(self):
+        """Save screenshot with annotations — user picks save location via dialog"""
+        self._commit_pending_text()
+        try:
+            final_pixmap = QPixmap(self.selection_rect.size())
+            final_pixmap.fill(Qt.white)
+            painter = QPainter(final_pixmap)
+            painter.drawPixmap(0, 0, self.screen_pixmap.copy(self.selection_rect))
+            self.annotation_manager.draw(painter, QPoint(0, 0))
+            painter.end()
+
+            # Hide overlay before showing dialog
+            self.hide()
+            if self.toolbar:
+                self.toolbar.hide()
+            if self.size_indicator:
+                self.size_indicator.hide()
+
+            from PyQt5.QtWidgets import QFileDialog
+            from datetime import datetime
+            from pathlib import Path
+
+            default_dir = self.config.get('local_save_path', '') or str(Path.home() / "Pictures" / "XenShoot")
+            ext      = self.config.get('preferred_extension', 'png').lower().lstrip('.')
+            template = self.config.get('filename_template', 'xenshoot_%Y-%m-%d_%H-%M-%S')
+            try:
+                base_name = datetime.now().strftime(template)
+            except Exception:
+                base_name = f"xenshoot_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+            default_path = str(Path(default_dir) / f"{base_name}.{ext}")
+
+            # Build filter with preferred extension first
+            if ext in ('jpg', 'jpeg'):
+                filt = "JPEG Image (*.jpg *.jpeg);;PNG Image (*.png);;All Files (*)"
+            else:
+                filt = "PNG Image (*.png);;JPEG Image (*.jpg *.jpeg);;All Files (*)"
+
+            filepath, _ = QFileDialog.getSaveFileName(
+                None, "Simpan Screenshot", default_path, filt
+            )
+
+            if filepath:
+                if not any(filepath.lower().endswith(e) for e in ('.png', '.jpg', '.jpeg')):
+                    filepath += f'.{ext}'
+                fmt     = "JPEG" if filepath.lower().endswith(('.jpg', '.jpeg')) else "PNG"
+                quality = self.config.get('jpeg_quality', 90) if fmt == "JPEG" else -1
+                final_pixmap.save(filepath, fmt, quality)
+        except Exception as e:
+            print(f"Error saving local: {e}")
+            import traceback; traceback.print_exc()
+        finally:
+            self.close()
         
     def copy_to_clipboard(self):
         """Copy screenshot with annotations to clipboard"""
+        self._commit_pending_text()
         from PyQt5.QtWidgets import QApplication
         
         try:
@@ -532,10 +806,8 @@ class ScreenshotOverlay(QWidget):
             painter = QPainter(final_pixmap)
             # Draw screenshot
             painter.drawPixmap(0, 0, self.screen_pixmap.copy(self.selection_rect))
-            
-            # Draw annotations (translate to selection origin)
-            painter.translate(-self.selection_rect.topLeft())
-            self.annotation_manager.draw(painter, self.selection_rect.topLeft())
+            # Annotation points are stored relative to selection origin (0,0 of final_pixmap)
+            self.annotation_manager.draw(painter, QPoint(0, 0))
             painter.end()
             
             # Copy to clipboard
@@ -554,18 +826,15 @@ class ScreenshotOverlay(QWidget):
     
     def pin_to_screen(self):
         """Pin screenshot to screen (keep it visible)"""
+        self._commit_pending_text()
         try:
             # Create final image with annotations
             final_pixmap = QPixmap(self.selection_rect.size())
             final_pixmap.fill(Qt.white)
             
             painter = QPainter(final_pixmap)
-            # Draw screenshot
             painter.drawPixmap(0, 0, self.screen_pixmap.copy(self.selection_rect))
-            
-            # Draw annotations
-            painter.translate(-self.selection_rect.topLeft())
-            self.annotation_manager.draw(painter, self.selection_rect.topLeft())
+            self.annotation_manager.draw(painter, QPoint(0, 0))
             painter.end()
             
             # Create draggable pinned window
@@ -608,6 +877,7 @@ class ScreenshotOverlay(QWidget):
     
     def open_with_app(self):
         """Save screenshot and open with selected application"""
+        self._commit_pending_text()
         from PyQt5.QtWidgets import QDialog, QVBoxLayout, QListWidget, QPushButton, QMessageBox, QListWidgetItem, QLabel
         import os
         import subprocess
@@ -619,8 +889,7 @@ class ScreenshotOverlay(QWidget):
             
             painter = QPainter(final_pixmap)
             painter.drawPixmap(0, 0, self.screen_pixmap.copy(self.selection_rect))
-            painter.translate(-self.selection_rect.topLeft())
-            self.annotation_manager.draw(painter, self.selection_rect.topLeft())
+            self.annotation_manager.draw(painter, QPoint(0, 0))
             painter.end()
             
             # Save to temp file
@@ -789,10 +1058,9 @@ class ScreenshotOverlay(QWidget):
     
     def cancel_capture(self):
         """Cancel capture"""
-        # Cleanup text input if exists
-        if self.text_input:
-            self.text_input.close()
-            self.text_input = None
+        # Cleanup any active text input
+        self.text_active = False
+        self.text_buffer = ""
         
         # Cleanup toolbar
         if self.toolbar:
@@ -808,11 +1076,14 @@ class ScreenshotOverlay(QWidget):
         self.close()
     
     def show_text_input_dialog(self, pos):
-        """Show inline text input at click position"""
-        from PyQt5.QtWidgets import QLineEdit
+        """Start inline text input at click position (no QLineEdit — uses overlay key events)"""
         from .annotation_tools import ToolType
         
-        # Create text annotation first
+        # Commit any existing text first
+        if self.text_active:
+            self._commit_pending_text()
+        
+        # Create text annotation placeholder
         offset = self.selection_rect.topLeft()
         self.annotation_manager.mouse_press(pos, offset)
         
@@ -823,59 +1094,40 @@ class ScreenshotOverlay(QWidget):
         relative_pos = text_annotation.position
         screen_pos = relative_pos + self.selection_rect.topLeft()
         
-        color = self.annotation_manager.current_color
-        
-        # Create inline text input
-        self.text_input = QLineEdit(self)
-        self.text_input.setWindowFlags(Qt.Widget)
-        self.text_input.setAttribute(Qt.WA_DeleteOnClose, False)
-        self.text_input.setStyleSheet(f"""
-            QLineEdit {{
-                background-color: transparent;
-                color: {color.name()};
-                border: none;
-                padding: 0px;
-                font-size: 32px;
-                font-weight: normal;
-                font-family: Arial;
-                selection-background-color: rgba(52, 152, 219, 100);
-                selection-color: white;
-            }}
-        """)
-        
-        self.text_input.move(screen_pos.x(), screen_pos.y())
-        self.text_input.setMinimumWidth(200)
-        self.text_input.raise_()
-        self.text_input.show()
-        self.text_input.setFocus()
-        self.text_input.activateWindow()
-        
-        # Connect to finish method
-        self.text_input.returnPressed.connect(self.finish_text_input)
+        # Set up buffer-based text input
+        self.text_active = True
+        self.text_buffer = ""
+        self.text_cursor = 0
+        self.text_pos = QPoint(screen_pos.x(), screen_pos.y())
+        self.text_color = self.annotation_manager.current_color
+        print(f"[TEXT] text input started at screen_pos=({screen_pos.x()},{screen_pos.y()})")
+        # Ensure overlay keeps keyboard focus (not toolbar or other window)
+        self.activateWindow()
+        self.setFocus()
+        self.update()
     
     def finish_text_input(self):
-        """Finish text input and add to annotations"""
-        if not self.text_input or not self.annotation_manager.current_annotation:
+        """Commit buffered text as a text annotation"""
+        print(f"[TEXT] finish_text_input: text_active={self.text_active}, current_annotation={self.annotation_manager.current_annotation}, buffer='{self.text_buffer}'")
+        if not self.text_active or not self.annotation_manager.current_annotation:
             return
         
-        text = self.text_input.text().strip()
-        
-        # Disconnect signal first to prevent double-trigger
-        try:
-            self.text_input.returnPressed.disconnect(self.finish_text_input)
-        except:
-            pass
-        
-        # Close and cleanup text input
-        self.text_input.close()
-        self.text_input = None
+        text = self.text_buffer.strip()
+        self.text_active = False
+        self.text_buffer = ""
+        self.text_cursor = 0
         
         if text:
-            # Add text to annotation
             self.annotation_manager.add_text_annotation(text)
+            print(f"[TEXT] annotation added, total={len(self.annotation_manager.annotations)}")
         else:
-            # Cancel if empty text
+            print(f"[TEXT] empty buffer — cancelled")
             self.annotation_manager.current_annotation = None
             self.annotation_manager.is_drawing = False
         
         self.update()
+
+    def _commit_pending_text(self):
+        """Finalize any active text input before exporting or switching tools."""
+        if self.text_active:
+            self.finish_text_input()

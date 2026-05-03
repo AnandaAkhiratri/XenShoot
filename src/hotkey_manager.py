@@ -80,6 +80,25 @@ class HotkeyManager(QThread):
         self.running = False
         if self.listener:
             self.listener.stop()
+
+    def update_hotkeys(self, area_str, full_str):
+        """Restart listener with new hotkey strings (called after settings save)"""
+        print(f"[HotkeyManager] Updating hotkeys: area={area_str}, full={full_str}")
+        self.area_hotkey = self.parse_hotkey(area_str)
+        self.full_hotkey = self.parse_hotkey(full_str)
+        self.current_keys.clear()
+        self.triggered_area = False
+        self.triggered_full = False
+        # Restart the pynput listener so it picks up nothing stale
+        if self.listener:
+            self.listener.stop()
+        self.listener = keyboard.Listener(
+            on_press=self.on_press,
+            on_release=self.on_release,
+            suppress=False
+        )
+        self.listener.start()
+        print(f"[HotkeyManager] Listener restarted with area={self.area_hotkey}, full={self.full_hotkey}")
             
     def normalize_key(self, key):
         """Normalize key to string"""
@@ -92,6 +111,8 @@ class HotkeyManager(QThread):
                 return 'alt'
             elif key in [keyboard.Key.cmd, keyboard.Key.cmd_l, keyboard.Key.cmd_r]:
                 return 'win'
+            elif key == keyboard.Key.print_screen:
+                return 'print_screen'
         elif isinstance(key, keyboard.KeyCode):
             if hasattr(key, 'char') and key.char:
                 char = key.char
@@ -125,8 +146,15 @@ class HotkeyManager(QThread):
                 if normalized:
                     self.current_keys.add(normalized)
                     print(f"[HotkeyManager] Key pressed: {normalized}, Current keys: {self.current_keys}")
-                
-                # Check for area capture hotkey
+
+                # Print Screen → area capture (fixed, not configurable)
+                if normalized == 'print_screen' and not self.triggered_area:
+                    print(f"[HotkeyManager] Print Screen → area capture!")
+                    self.triggered_area = True
+                    self.capture_signal.emit()
+                    return
+
+                # Check for configurable area capture hotkey (secondary)
                 if not self.triggered_area and self.area_hotkey.issubset(self.current_keys):
                     print(f"[HotkeyManager] Area hotkey triggered!")
                     self.triggered_area = True
@@ -150,7 +178,7 @@ class HotkeyManager(QThread):
                     print(f"[HotkeyManager] Key released: {normalized}, Current keys: {self.current_keys}")
                     
                 # Reset triggers when keys released
-                if normalized == 'ctrl' or normalized == 'shift':
+                if normalized in ('ctrl', 'shift', 'print_screen'):
                     self.triggered_area = False
                     self.triggered_full = False
         except Exception as e:

@@ -22,7 +22,19 @@ try:
     app = QApplication(sys.argv)
     app.setApplicationName("XenShoot")
     app.setOrganizationName("XenShoot")
-    
+
+    # Load Poppins font and set as app-wide default
+    from PyQt5.QtGui import QFontDatabase, QFont
+    import os as _os
+    _font_dir = _os.path.join(_os.path.dirname(__file__), 'src', 'fonts')
+    for _fname in ('Poppins-Regular.ttf', 'Poppins-Bold.ttf', 'Poppins-Medium.ttf'):
+        _fpath = _os.path.join(_font_dir, _fname)
+        if _os.path.exists(_fpath):
+            QFontDatabase.addApplicationFont(_fpath)
+    _poppins = QFont("Poppins", 10)
+    if _poppins.family() == "Poppins":
+        app.setFont(_poppins)
+
     # CRITICAL: Prevent app from quitting when screenshot overlay closes
     app.setQuitOnLastWindowClosed(False)
     
@@ -46,6 +58,7 @@ try:
     
     hotkey_manager.error_signal.connect(show_hotkey_error)
     hotkey_manager.start()
+    main_window.hotkey_manager = hotkey_manager   # allow settings to reload hotkeys
     print("Hotkey manager started!")
     
     print("\nXenShoot is running!")

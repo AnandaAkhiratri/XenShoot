@@ -196,25 +196,23 @@ class HighlighterAnnotation(Annotation):
             painter.setRenderHint(QPainter.Antialiasing, False)
 
 class TextAnnotation(Annotation):
-    def __init__(self, tool_type, color, thickness):
+    def __init__(self, tool_type, color, thickness, font_size=32):
         super().__init__(tool_type, color, thickness)
         self.text = ""
         self.position = QPoint()
-        
+        self.font_size = font_size
+
     def draw(self, painter, offset=QPoint(0, 0)):
         if self.text and not self.position.isNull():
-            # Enable antialiasing for smooth text
             painter.setRenderHint(QPainter.Antialiasing, True)
             painter.setRenderHint(QPainter.TextAntialiasing, True)
             painter.setRenderHint(QPainter.SmoothPixmapTransform, True)
             
             painter.setPen(QPen(self.color))
-            font = QFont("Arial", 32, QFont.Normal)  # 32px, normal weight as user requested
+            font = QFont("Arial", self.font_size, QFont.Normal)
             painter.setFont(font)
-            # Use relative coordinates directly
             painter.drawText(self.position, self.text)
             
-            # Reset antialiasing
             painter.setRenderHint(QPainter.Antialiasing, False)
             painter.setRenderHint(QPainter.TextAntialiasing, False)
 
@@ -323,6 +321,7 @@ class AnnotationManager:
         self.current_tool = ToolType.SELECT
         self.current_color = QColor(245, 203, 17)  # Yellow/Gold default (#f5cb11)
         self.current_thickness = 3
+        self.text_font_size = 32   # font size (pt) for text annotations, adjusted by +/-
         self.undo_stack = []
         self.is_drawing = False
         self.number_counter = 1  # Counter for number annotations
@@ -368,7 +367,7 @@ class AnnotationManager:
         elif self.current_tool == ToolType.INVERT:
             self.current_annotation = InvertAnnotation(self.current_tool, self.current_color, self.current_thickness)
         elif self.current_tool == ToolType.TEXT:
-            self.current_annotation = TextAnnotation(self.current_tool, self.current_color, self.current_thickness)
+            self.current_annotation = TextAnnotation(self.current_tool, self.current_color, self.current_thickness, self.text_font_size)
             self.current_annotation.position = relative_pos
             self.is_drawing = True
             return  # Don't add point, just wait for text input
@@ -406,6 +405,9 @@ class AnnotationManager:
                     
     def mouse_release(self, pos, offset):
         if self.is_drawing and self.current_annotation:
+            # TEXT annotations are finalized via add_text_annotation(), not here
+            if self.current_tool == ToolType.TEXT:
+                return
             self.annotations.append(self.current_annotation)
             self.undo_stack.clear()
             self.current_annotation = None

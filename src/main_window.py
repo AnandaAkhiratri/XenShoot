@@ -13,6 +13,7 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.config = ConfigManager()
         self.screenshot_overlay = None
+        self.hotkey_manager = None   # set by run.py after HotkeyManager is created
         self.init_ui()
         self.init_tray()
         
@@ -129,10 +130,22 @@ class MainWindow(QMainWindow):
             traceback.print_exc()
             
     def show_settings(self):
-        """Show settings dialog"""
+        """Show settings dialog centered on screen"""
         from .settings_dialog import SettingsDialog
         dialog = SettingsDialog(self.config, self)
-        dialog.exec_()
+        # Center on primary screen
+        screen = QApplication.primaryScreen().availableGeometry()
+        dialog.adjustSize()
+        dialog.move(
+            screen.center().x() - dialog.width() // 2,
+            screen.center().y() - dialog.height() // 2,
+        )
+        if dialog.exec_() == dialog.Accepted and self.hotkey_manager:
+            # Apply new hotkeys immediately without restart
+            self.hotkey_manager.update_hotkeys(
+                self.config.get('hotkey_area', 'ctrl+shift+a'),
+                self.config.get('hotkey_fullscreen', 'ctrl+shift+f')
+            )
         
     def quit_app(self):
         """Quit application"""
