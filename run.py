@@ -5,8 +5,12 @@ Run XenShoot with error catching
 import sys
 import traceback
 
-# Fix encoding for Windows console
-sys.stdout.reconfigure(encoding='utf-8')
+# Fix encoding for Windows console (not available when compiled without console)
+if sys.stdout is not None:
+    try:
+        sys.stdout.reconfigure(encoding='utf-8')
+    except Exception:
+        pass
 
 # Windows: override taskbar icon (must be called before QApplication)
 try:
@@ -86,7 +90,15 @@ try:
     sys.exit(app.exec_())
     
 except Exception as e:
-    print(f"\nERROR: {e}")
-    print("\nFull traceback:")
-    traceback.print_exc()
-    input("\nPress Enter to exit...")
+    try:
+        import traceback as _tb
+        _tb.print_exc()
+    except Exception:
+        pass
+    # Show error in GUI since there's no console in compiled mode
+    try:
+        from PyQt5.QtWidgets import QApplication, QMessageBox
+        _app = QApplication.instance() or QApplication([])
+        QMessageBox.critical(None, "KShot Error", f"{type(e).__name__}: {e}")
+    except Exception:
+        pass

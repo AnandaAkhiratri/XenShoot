@@ -92,7 +92,7 @@ class MainWindow(QMainWindow):
         self.tray_icon.show()
         
         # Show welcome notification when app starts
-        # self.show_startup_notification()
+        self.show_startup_notification()
         
     def show_startup_notification(self):
         """Show notification when app starts"""
