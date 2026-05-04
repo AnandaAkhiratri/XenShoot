@@ -104,11 +104,10 @@ class ImageUploader:
                 timeout=10
             )
             
-            if response.status_code == 201:
+            if response.status_code in (200, 201):
                 print(f"[LARAVEL API] Screenshot metadata saved successfully")
             else:
-                print(f"[LARAVEL API] Failed to save metadata: {response.status_code}")
-                print(f"[LARAVEL API] Response: {response.text}")
+                print(f"[LARAVEL API] Failed to save metadata: {response.status_code} (server-side error, upload still succeeded)")
                 
         except Exception as e:
             print(f"[LARAVEL API] Error sending to API: {e}")
@@ -196,7 +195,7 @@ class ImageUploader:
         
         # Use UNSIGNED upload - no signature/authentication needed!
         # This requires an unsigned upload preset in Cloudinary dashboard
-        upload_preset = self.config.get('cloudinary_upload_preset', 'xenshoot')
+        upload_preset = self.config.get('cloudinary_upload_preset', 'KShot')
         
         # Upload URL for unsigned uploads
         url = f"https://api.cloudinary.com/v1_1/{cloud_name}/image/upload"
@@ -209,7 +208,7 @@ class ImageUploader:
         # Data for unsigned upload - much simpler!
         data = {
             'upload_preset': upload_preset,
-            'folder': 'xenshoot'
+            'folder': 'KShot'
         }
         
         # Upload
@@ -233,8 +232,8 @@ class ImageUploader:
                     "2. Scroll to 'Upload presets'\n"
                     "3. Click 'Add upload preset'\n"
                     "4. Signing Mode: 'Unsigned'\n"
-                    "5. Preset name: 'xenshoot'\n"
-                    "6. Folder: 'xenshoot'\n"
+                    "5. Preset name: 'KShot'\n"
+                    "6. Folder: 'KShot'\n"
                     "7. Save\n\n"
                     "Then try again!"
                 )

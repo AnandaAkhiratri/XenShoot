@@ -51,7 +51,7 @@ class RectangleAnnotation(Annotation):
             if rect.width() > 2000 or rect.height() > 2000:
                 return
             
-            painter.setPen(QPen(self.color, self.thickness, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
+            painter.setPen(QPen(self.color, self.thickness, Qt.SolidLine, Qt.SquareCap, Qt.MiterJoin))
             painter.setBrush(Qt.NoBrush)
             painter.drawRect(rect)
             
@@ -82,7 +82,7 @@ class FilledRectangleAnnotation(Annotation):
             color = QColor(self.color)
             color.setAlpha(255)  # 100% SOLID - not transparent
             
-            painter.setPen(QPen(self.color, self.thickness, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
+            painter.setPen(QPen(self.color, self.thickness, Qt.SolidLine, Qt.SquareCap, Qt.MiterJoin))
             painter.setBrush(QBrush(color))  # Fill with SOLID color
             painter.drawRect(rect)
             
@@ -103,7 +103,7 @@ class CircleAnnotation(Annotation):
             if rect.width() > 2000 or rect.height() > 2000:
                 return
             
-            painter.setPen(QPen(self.color, self.thickness, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
+            painter.setPen(QPen(self.color, self.thickness, Qt.SolidLine, Qt.SquareCap, Qt.MiterJoin))
             painter.setBrush(Qt.NoBrush)
             painter.drawEllipse(rect)
             
@@ -117,7 +117,7 @@ class LineAnnotation(Annotation):
             painter.setRenderHint(QPainter.Antialiasing, True)
             painter.setRenderHint(QPainter.SmoothPixmapTransform, True)
             
-            painter.setPen(QPen(self.color, self.thickness, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
+            painter.setPen(QPen(self.color, self.thickness, Qt.SolidLine, Qt.SquareCap, Qt.MiterJoin))
             # Use relative coordinates directly
             painter.drawLine(self.points[0], self.points[-1])
             
@@ -131,7 +131,7 @@ class ArrowAnnotation(Annotation):
             painter.setRenderHint(QPainter.Antialiasing, True)
             painter.setRenderHint(QPainter.SmoothPixmapTransform, True)
             
-            painter.setPen(QPen(self.color, self.thickness, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
+            painter.setPen(QPen(self.color, self.thickness, Qt.SolidLine, Qt.SquareCap, Qt.MiterJoin))
             painter.setBrush(QBrush(self.color))
             
             # Use relative coordinates directly
@@ -172,7 +172,7 @@ class PenAnnotation(Annotation):
             painter.setRenderHint(QPainter.Antialiasing, True)
             painter.setRenderHint(QPainter.SmoothPixmapTransform, True)
             
-            painter.setPen(QPen(self.color, self.thickness, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
+            painter.setPen(QPen(self.color, self.thickness, Qt.SolidLine, Qt.SquareCap, Qt.MiterJoin))
             for i in range(len(self.points) - 1):
                 painter.drawLine(self.points[i], self.points[i + 1])
             
@@ -188,7 +188,7 @@ class HighlighterAnnotation(Annotation):
             
             color = QColor(self.color)
             color.setAlpha(80)
-            painter.setPen(QPen(color, self.thickness * 3, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
+            painter.setPen(QPen(color, self.thickness * 3, Qt.SolidLine, Qt.SquareCap, Qt.MiterJoin))
             for i in range(len(self.points) - 1):
                 painter.drawLine(self.points[i], self.points[i + 1])
             
@@ -234,7 +234,7 @@ class NumberAnnotation(Annotation):
             circle_radius = 18
             
             # Draw filled circle with smooth edges
-            painter.setPen(QPen(self.color, 2, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
+            painter.setPen(QPen(self.color, 2, Qt.SolidLine, Qt.SquareCap, Qt.MiterJoin))
             painter.setBrush(QBrush(self.color, Qt.SolidPattern))
             
             # Use QRectF for sub-pixel precision (floating point)

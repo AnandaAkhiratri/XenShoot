@@ -358,7 +358,7 @@ class _ColorPopup(QWidget):
         cols = 4
         for i, hex_c in enumerate(self._presets):
             btn = QPushButton()
-            btn.setFixedSize(28, 28)
+            btn.setFixedSize(24, 24)
             btn.setProperty("class", "swatch")
             btn.setStyleSheet(
                 f"background:{hex_c}; border:1px solid #555; border-radius:4px;")
@@ -490,7 +490,6 @@ class Toolbar:
             self.action_btns[name] = btn
         # Color picker button
         self.color_btn = QPushButton()
-        self.color_btn.setToolTip("Pick annotation color")
         self.color_btn.setFixedSize(36, 36)
         self._update_color_btn()
         self.color_btn.clicked.connect(self._show_color_popup)
@@ -577,13 +576,8 @@ class Toolbar:
 
     def _update_color_btn(self):
         """Refresh the color button to reflect current annotation color."""
-        c = self.annotation_manager.current_color
-        px = QPixmap(26, 26); px.fill(c)
-        self.color_btn.setIcon(QIcon(px))
-        self.color_btn.setIconSize(QSize(26, 26))
-        self.color_btn.setStyleSheet(
-            f"background:{c.name()}; border:2px solid #fff;"
-            "border-radius:5px; padding:0px;")
+        self.color_btn.setIcon(self._ico_color_picker())
+        self.color_btn.setIconSize(QSize(28, 28))
 
     def _show_color_popup(self):
         """Show a floating color palette popup."""
@@ -821,3 +815,32 @@ class Toolbar:
         p = QPainter(px); p.setRenderHint(QPainter.Antialiasing)
         p.setPen(QPen(self._icon_color,3,Qt.SolidLine,Qt.RoundCap))
         p.drawLine(8,16,24,16); p.drawLine(16,8,16,24); p.end(); return QIcon(px)
+
+    def _ico_color_picker(self):
+        """Eyedropper icon with current color indicator dot."""
+        from PyQt5.QtCore import QPointF
+        from PyQt5.QtGui import QPolygonF
+        c = self._icon_color
+        cur_color = self.annotation_manager.current_color
+        px = QPixmap(32, 32); px.fill(Qt.transparent)
+        p = QPainter(px); p.setRenderHint(QPainter.Antialiasing)
+        # Eyedropper body (diagonal tube)
+        p.setPen(QPen(c, 1.5)); p.setBrush(c)
+        body = QPolygonF([
+            QPointF(18, 4), QPointF(22, 8),
+            QPointF(13, 17), QPointF(9, 13),
+        ])
+        p.drawPolygon(body)
+        # Tip
+        p.drawLine(int(9), int(13), int(6), int(16))
+        p.setPen(QPen(c, 1)); p.setBrush(c)
+        p.drawEllipse(QPointF(5, 17), 2.0, 2.0)
+        # Cap circle at top
+        p.setPen(QPen(c, 1.5)); p.setBrush(Qt.NoBrush)
+        p.drawEllipse(QPointF(20, 6), 3.0, 3.0)
+        # Current color dot at bottom-right
+        p.setPen(QPen(QColor('#ffffff'), 1))
+        p.setBrush(cur_color)
+        p.drawEllipse(QPointF(24, 24), 5.0, 5.0)
+        p.end()
+        return QIcon(px)

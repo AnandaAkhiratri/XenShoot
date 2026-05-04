@@ -8,20 +8,34 @@ import traceback
 # Fix encoding for Windows console
 sys.stdout.reconfigure(encoding='utf-8')
 
+# Windows: override taskbar icon (must be called before QApplication)
+try:
+    import ctypes
+    ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("KShot")
+except Exception:
+    pass
+
 try:
     from PyQt5.QtWidgets import QApplication, QMessageBox
     from src.main_window import MainWindow
     from src.hotkey_manager import HotkeyManager
     
-    print("Starting XenShoot...")
+    print("Starting KShot...")
     print("Press Ctrl+Shift+A for area screenshot")
     print("Press Ctrl+Shift+F for fullscreen screenshot")
     print("Check system tray for icon")
     print("-" * 50)
     
     app = QApplication(sys.argv)
-    app.setApplicationName("XenShoot")
-    app.setOrganizationName("XenShoot")
+    app.setApplicationName("KShot")
+    app.setOrganizationName("KShot")
+
+    # Set app-wide icon (shows in taskbar for all windows)
+    import os as _os_icon
+    from PyQt5.QtGui import QIcon as _QIcon
+    _icon_path = _os_icon.path.join(_os_icon.path.dirname(__file__), 'src', 'Logo', 'logo.png')
+    if _os_icon.path.exists(_icon_path):
+        app.setWindowIcon(_QIcon(_icon_path))
 
     # Load Poppins font and set as app-wide default
     from PyQt5.QtGui import QFontDatabase, QFont
@@ -41,6 +55,7 @@ try:
     # Create main window (system tray)
     print("Creating main window...")
     main_window = MainWindow()
+    app.setProperty("main_window", main_window)   # accessible from overlay
     print("Main window created!")
     
     # Setup hotkey manager

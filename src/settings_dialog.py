@@ -1,5 +1,5 @@
 """
-Settings dialog for XenShoot — Flameshot-style UI
+Settings dialog for kshot — Flameshot-style UI
 Tabs: General | Filename Editor | Shortcuts
 """
 
@@ -10,7 +10,7 @@ from PyQt5.QtWidgets import (
     QScrollArea, QFrame, QComboBox, QSpinBox, QGridLayout, QSizePolicy,
     QMessageBox, QSlider, QColorDialog
 )
-from PyQt5.QtCore import Qt, pyqtSignal, QSize
+from PyQt5.QtCore import Qt, pyqtSignal, QSize, QPoint
 from PyQt5.QtGui import QKeySequence, QFont, QColor, QIcon, QPixmap
 from datetime import datetime
 import os, json
@@ -25,11 +25,11 @@ class ShortcutCapture(QPushButton):
     conflict_detected = pyqtSignal(str, str)   # (attempted, conflicting_label)
 
     _IDLE = ("background:#2d2d2d;color:#f0f0f0;border:1px solid #555;"
-             "border-radius:4px;padding:4px 12px;font-family:monospace;font-size:13px;")
+             "border-radius:4px;padding:4px 12px;font-family:monospace;font-size:12px;")
     _REC  = ("background:#1a3a5c;color:#7ec8e3;border:2px solid #7ec8e3;"
-             "border-radius:4px;padding:4px 12px;font-family:monospace;font-size:13px;")
+             "border-radius:4px;padding:4px 12px;font-family:monospace;font-size:12px;")
     _ERR  = ("background:#3a1a1a;color:#ff6b6b;border:2px solid #ff4444;"
-             "border-radius:4px;padding:4px 12px;font-family:monospace;font-size:13px;")
+             "border-radius:4px;padding:4px 12px;font-family:monospace;font-size:12px;")
 
     def __init__(self, shortcut="", parent=None):
         super().__init__(parent)
@@ -45,8 +45,15 @@ class ShortcutCapture(QPushButton):
         """fn(new_shortcut_str, this_widget) -> label_str of conflicting widget, or None"""
         self._conflict_checker = fn
 
+    @staticmethod
+    def _format_shortcut(s):
+        """Format 'ctrl+shift+s' → 'Ctrl + Shift + S'"""
+        if not s:
+            return "—"
+        return " + ".join(part.capitalize() for part in s.split("+"))
+
     def _refresh(self):
-        self.setText(self._shortcut or "—")
+        self.setText(self._format_shortcut(self._shortcut))
 
     def _start(self):
         self._recording = True
@@ -113,44 +120,49 @@ class ShortcutCapture(QPushButton):
 # ─────────────────────────────────────────────────────────────────────────────
 
 _DARK = """
-QDialog, QWidget       { background:#1a1a2e; color:#e8e8f0; }
-QTabWidget::pane       { border:1px solid #3a3a5c; background:#1a1a2e; }
-QTabBar::tab           { background:#252540; color:#9999bb; padding:9px 18px;
+QDialog, QWidget       { background:#000a1d; color:#ffffff; }
+QTabWidget::pane       { border:1px solid #3a3a5c; background:#0b1d3a; }
+QTabBar::tab           { background:#0b1d3a; color:#9999bb;
+                         padding:0px; min-width:64px; max-width:64px; min-height:38px;
                          border:1px solid #3a3a5c; border-bottom:none;
-                         border-radius:4px 4px 0 0; font-size:13px; }
+                         border-radius:4px 4px 0 0; font-size:12px; }
 QTabBar::tab:selected  { background:#1a1a2e; color:#ffffff; font-weight:bold; }
 QTabBar::tab:hover     { color:#ddddff; }
 QGroupBox              { color:#c0c0e0; border:1px solid #4a4a7a; border-radius:6px;
                          margin-top:12px; padding-top:12px; font-weight:bold; font-size:12px; }
 QGroupBox::title       { subcontrol-origin:margin; left:12px; padding:0 6px;
-                         color:#a0a0ff; }
-QCheckBox              { color:#e0e0f8; spacing:8px; font-size:13px; }
+                         color:#bcbec2; }
+QCheckBox              { color:#e0e0f8; spacing:8px; font-size:12px; }
 QCheckBox::indicator   { width:17px; height:17px; border:2px solid #6060a0;
                          border-radius:3px; background:#252540; }
-QCheckBox::indicator:checked   { background:#5050d0; border-color:#8080ff;
+QCheckBox::indicator:checked   { background:#0e4689; border-color:#8080ff;
                                   image: none; }
 QCheckBox::indicator:unchecked { background:#252540; }
 QLineEdit              { background:#252540; color:#f0f0ff; border:1px solid #5050a0;
-                         border-radius:4px; padding:5px 8px; font-size:13px; }
+                         border-radius:4px; padding:5px 8px; font-size:12px; }
 QLineEdit:focus        { border:1px solid #8080ff; }
 QLineEdit[readOnly="true"] { background:#1e1e35; color:#8888aa; }
 QComboBox              { background:#252540; color:#f0f0ff; border:1px solid #5050a0;
-                         border-radius:4px; padding:5px 8px; font-size:13px; }
+                         border-radius:4px; padding:5px 8px; font-size:12px; }
 QComboBox QAbstractItemView { background:#252540; color:#f0f0ff; border:1px solid #5050a0; }
 QSpinBox               { background:#252540; color:#f0f0ff; border:1px solid #5050a0;
-                         border-radius:4px; padding:4px 6px; font-size:13px; }
+                         border-radius:4px; padding:4px 6px; font-size:12px; }
 QPushButton            { background:#2d2d50; color:#e0e0f8; border:1px solid #5050a0;
-                         border-radius:4px; padding:6px 16px; font-size:13px; }
+                         border-radius:4px; padding:6px 16px; font-size:12px; }
 QPushButton:hover      { background:#3a3a6a; border-color:#9090d0; }
+#titlebar QPushButton  { background:transparent; color:#cccccc; border:none;
+                         border-radius:4px; padding:0px; font-size:14px; }
+#titlebar QPushButton:hover        { background:#3a3a4a; color:#ffffff; }
+#titlebar QPushButton#close_btn:hover { background:#c0392b; color:#ffffff; }
 QPushButton#primary    { background:#3a3adc; border-color:#6060ff; color:white;
                          font-weight:bold; }
 QPushButton#primary:hover { background:#5050ff; }
 QPushButton#token_btn  { background:#2a2a48; color:#c0c0f0; border:1px solid #4a4a80;
                          border-radius:4px; padding:7px 4px; font-size:12px; }
 QPushButton#token_btn:hover { background:#3a3a60; border-color:#8080c0; }
-QLabel                 { color:#c8c8e8; font-size:13px; }
+QLabel                 { color:#c8c8e8; font-size:12px; }
 QHeaderView::section   { background:#252540; color:#a0a0cc; border:none;
-                         border-bottom:1px solid #3a3a5c; padding:7px; font-size:13px; }
+                         border-bottom:1px solid #3a3a5c; padding:7px; font-size:12px; }
 QScrollArea            { border:none; background:transparent; }
 QScrollBar:vertical    { background:#1a1a2e; width:10px; }
 QScrollBar::handle:vertical { background:#4040a0; border-radius:5px; min-height:20px; }
@@ -158,33 +170,143 @@ QScrollBar::handle:vertical { background:#4040a0; border-radius:5px; min-height:
 
 
 class SettingsDialog(QDialog):
-    DEFAULT_TEMPLATE = "xenshoot_%Y-%m-%d_%H-%M-%S"
+    DEFAULT_TEMPLATE = "kshot_%Y-%m-%d_%H-%M-%S"
 
     def __init__(self, config, parent=None):
         super().__init__(parent)
         self.config = config
         self._orig_template = config.get('filename_template', self.DEFAULT_TEMPLATE)
+        self._drag_pos = None
         self._init_ui()
         self._load_settings()
+
+    # ── Drag support for frameless window ────────────────────────────────────
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.LeftButton and self._titlebar.underMouse():
+            self._drag_pos = event.globalPos() - self.frameGeometry().topLeft()
+            event.accept()
+
+    def mouseMoveEvent(self, event):
+        if event.buttons() == Qt.LeftButton and self._drag_pos is not None:
+            self.move(event.globalPos() - self._drag_pos)
+            event.accept()
+
+    def mouseReleaseEvent(self, event):
+        self._drag_pos = None
+
+    def _toggle_maximize(self):
+        if self.isMaximized():
+            self.showNormal()
+        else:
+            self.showMaximized()
 
     # ── UI skeleton ──────────────────────────────────────────────────────────
 
     def _init_ui(self):
-        self.setWindowTitle("XenShoot — Configuration")
+        self.setWindowTitle("KSHOT — Configuration")
         self.setModal(True)
         self.setMinimumSize(580, 520)
+        self.setWindowFlags(Qt.Window | Qt.FramelessWindowHint)
+        _logo = os.path.join(os.path.dirname(__file__), 'Logo', 'logo.png')
+        if os.path.exists(_logo):
+            self.setWindowIcon(QIcon(_logo))
         self.setStyleSheet(_DARK)
 
         root = QVBoxLayout(self)
-        root.setContentsMargins(10, 10, 10, 10)
-        root.setSpacing(8)
+        root.setContentsMargins(0, 0, 0, 0)
+        root.setSpacing(0)
+
+        # ── Custom title bar ─────────────────────────────────────────────────
+        self._titlebar = QWidget()
+        self._titlebar.setObjectName("titlebar")
+        self._titlebar.setFixedHeight(40)
+        self._titlebar.setStyleSheet(
+            "#titlebar { background:#1a1a2e; border-bottom: 1px solid #333; }"
+        )
+        tb_lay = QHBoxLayout(self._titlebar)
+        tb_lay.setContentsMargins(10, 0, 8, 0)
+        tb_lay.setSpacing(8)
+
+        _logo_path = os.path.join(os.path.dirname(__file__), 'Logo', 'logo.png')
+        if os.path.exists(_logo_path):
+            ico_lbl = QLabel()
+            ico_lbl.setPixmap(QPixmap(_logo_path).scaled(22, 22, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+            ico_lbl.setStyleSheet("background: transparent;")
+            tb_lay.addWidget(ico_lbl)
+
+        title_lbl = QLabel("Settings")
+        title_lbl.setStyleSheet(
+            "background: transparent; color: #e0e0e0; font-size: 13px; font-weight: 600;"
+        )
+        tb_lay.addWidget(title_lbl)
+        tb_lay.addStretch()
+
+        _TB_ICON_DIR = os.path.join(os.path.dirname(__file__), 'Logo', 'titlebar')
+
+        def _tb_btn(icon_name, obj_name, slot):
+            btn = QPushButton()
+            btn.setObjectName(obj_name)
+            btn.setFixedSize(32, 28)
+            btn.setCursor(Qt.ArrowCursor)
+            btn.clicked.connect(slot)
+            icon_path = os.path.join(_TB_ICON_DIR, f'{icon_name}.svg')
+            if os.path.exists(icon_path):
+                btn.setIcon(QIcon(icon_path))
+                btn.setIconSize(QSize(14, 14))
+            return btn
+
+        tb_lay.addWidget(_tb_btn("minimize", "min_btn",   self.showMinimized))
+        tb_lay.addWidget(_tb_btn("maximize", "max_btn",   self._toggle_maximize))
+        tb_lay.addWidget(_tb_btn("close",    "close_btn", self.reject))
+
+        root.addWidget(self._titlebar)
+
+        # ── Content area ─────────────────────────────────────────────────────
+        content = QWidget()
+        content.setStyleSheet("background:#1e1e2e;")
+        content_lay = QVBoxLayout(content)
+        content_lay.setContentsMargins(10, 10, 10, 10)
+        content_lay.setSpacing(8)
+        root.addWidget(content)
 
         self.tabs = QTabWidget()
-        self.tabs.addTab(self._tab_general(),   "⚙  General")
-        self.tabs.addTab(self._tab_interface(), "🎨  Interface")
-        self.tabs.addTab(self._tab_filename(),  "✎  Filename Editor")
-        self.tabs.addTab(self._tab_shortcuts(), "⌨  Shortcuts")
-        root.addWidget(self.tabs)
+        self.tabs.setIconSize(QSize(20, 20))
+        self.tabs.tabBar().setExpanding(True)
+
+        # Tab icon helper — loads SVG from src/Logo/tabs/<name>.svg if exists,
+        # falls back to emoji text. Drop any SVG into that folder and it will be used.
+        import os as _os
+        _ICON_DIR = _os.path.join(_os.path.dirname(__file__), 'Logo', 'tabs')
+
+        def _tab_icon(name, fallback_text):
+            path = _os.path.join(_ICON_DIR, f'{name}.svg')
+            if _os.path.exists(path):
+                icon = QIcon(path)
+                return icon, ""     # icon only, no text
+            return QIcon(), fallback_text  # no icon, use emoji text
+
+        def _add_tab(widget, name, fallback):
+            path = _os.path.join(_ICON_DIR, f'{name}.svg')
+            if _os.path.exists(path):
+                from PyQt5.QtWidgets import QTabBar
+                idx = self.tabs.count()
+                self.tabs.addTab(widget, "")
+                # Use setTabButton with a centered QLabel for true icon centering
+                lbl = QLabel()
+                lbl.setPixmap(QIcon(path).pixmap(20, 20))
+                lbl.setAlignment(Qt.AlignCenter)
+                lbl.setFixedSize(64, 38)
+                lbl.setStyleSheet("background: transparent; margin: 0px;")
+                self.tabs.tabBar().setTabButton(idx, QTabBar.LeftSide, lbl)
+            else:
+                self.tabs.addTab(widget, fallback)
+
+        _add_tab(self._tab_general(),   'general',   '⚙')
+        _add_tab(self._tab_interface(), 'interface', '🎨')
+        _add_tab(self._tab_filename(),  'filename',  '✎')
+        _add_tab(self._tab_shortcuts(), 'shortcuts', '⌨')
+        content_lay.addWidget(self.tabs)
 
         btn_row = QHBoxLayout()
         btn_row.addStretch()
@@ -193,7 +315,7 @@ class SettingsDialog(QDialog):
         save.clicked.connect(self._save)
         btn_row.addWidget(cancel)
         btn_row.addWidget(save)
-        root.addLayout(btn_row)
+        content_lay.addLayout(btn_row)
 
     # ── General tab ──────────────────────────────────────────────────────────
 
@@ -209,8 +331,8 @@ class SettingsDialog(QDialog):
 
         path_row = QHBoxLayout()
         self.save_path_input = QLineEdit()
-        self.save_path_input.setPlaceholderText("Default: Pictures/XenShoot")
-        change_btn = QPushButton("Change…")
+        self.save_path_input.setPlaceholderText("Default: Pictures/kshot")
+        change_btn = QPushButton("Change")
         change_btn.setFixedWidth(90)
         change_btn.clicked.connect(self._browse_path)
         path_row.addWidget(self.save_path_input)
@@ -255,13 +377,13 @@ class SettingsDialog(QDialog):
         lay.addWidget(grp_notif)
 
         # Config file
-        grp_cfg = QGroupBox("Configuration File")
-        h = QHBoxLayout(grp_cfg)
-        exp_btn = QPushButton("Export"); exp_btn.clicked.connect(self._export_config)
-        imp_btn = QPushButton("Import"); imp_btn.clicked.connect(self._import_config)
-        rst_btn = QPushButton("Reset");  rst_btn.clicked.connect(self._reset_config)
-        h.addWidget(exp_btn); h.addWidget(imp_btn); h.addWidget(rst_btn); h.addStretch()
-        lay.addWidget(grp_cfg)
+        # grp_cfg = QGroupBox("Configuration File")
+        # h = QHBoxLayout(grp_cfg)
+        # exp_btn = QPushButton("Export"); exp_btn.clicked.connect(self._export_config)
+        # imp_btn = QPushButton("Import"); imp_btn.clicked.connect(self._import_config)
+        # rst_btn = QPushButton("Reset");  rst_btn.clicked.connect(self._reset_config)
+        # h.addWidget(exp_btn); h.addWidget(imp_btn); h.addWidget(rst_btn); h.addStretch()
+        # lay.addWidget(grp_cfg)
 
         lay.addStretch()
         scroll.setWidget(inner)
@@ -282,13 +404,13 @@ class SettingsDialog(QDialog):
         hint_cp = QLabel("Klik warna untuk memilih, klik 2× untuk mengedit. "
                          "Warna ini muncul sebagai pilihan di toolbar screenshot.")
         hint_cp.setWordWrap(True)
-        hint_cp.setStyleSheet("color:#9999bb; font-size:11px;")
+        hint_cp.setStyleSheet("color:#9999bb; font-size:12px;")
         vcp.addWidget(hint_cp)
 
         # Color circles grid
         self._color_presets = list(self.config.get('color_presets', [
             '#f5cb11','#ff4444','#ff8800','#44cc44',
-            '#4488ff','#cc44ff','#ffffff','#000000',
+            '#4488ff','#cc44ff',
         ]))
         self._selected_color_idx = 0
         self._color_btns = []
@@ -305,7 +427,7 @@ class SettingsDialog(QDialog):
         self._color_hex_edit.setPlaceholderText("#rrggbb")
         self._color_hex_edit.setFixedWidth(100)
 
-        pick_btn = QPushButton("Pick…")
+        pick_btn = QPushButton("Pick")
         pick_btn.setFixedWidth(70)
         pick_btn.clicked.connect(self._pick_color_for_edit)
 
@@ -345,7 +467,7 @@ class SettingsDialog(QDialog):
         self._sel_color_lbl = QLabel(self._sel_color)
         self._sel_color_lbl.setStyleSheet("color:#c0c0f0; font-family:monospace;")
         sel_hint = QLabel("Warna border kotak seleksi dan handle pojok")
-        sel_hint.setStyleSheet("color:#9999bb; font-size:11px;")
+        sel_hint.setStyleSheet("color:#9999bb; font-size:12px;")
         sel_hint.setWordWrap(True)
         sel_row.addWidget(self._sel_color_btn)
         sel_row.addWidget(self._sel_color_lbl)
@@ -359,7 +481,7 @@ class SettingsDialog(QDialog):
         vtbc = QVBoxLayout(grp_tb_clr); vtbc.setSpacing(6)
         tbc_hint = QLabel("Background dan warna icon pada tombol-tombol toolbar.")
         tbc_hint.setWordWrap(True)
-        tbc_hint.setStyleSheet("color:#9999bb; font-size:11px;")
+        tbc_hint.setStyleSheet("color:#9999bb; font-size:12px;")
         vtbc.addWidget(tbc_hint)
 
         self._tb_bg_color   = self.config.get('toolbar_bg_color',   '#000a52')
@@ -368,7 +490,7 @@ class SettingsDialog(QDialog):
         tbc_row = QHBoxLayout(); tbc_row.setSpacing(12)
         # Background color
         bg_col = QVBoxLayout()
-        bg_lbl = QLabel("Background"); bg_lbl.setStyleSheet("color:#c0c0f0;font-size:11px;")
+        bg_lbl = QLabel("Background"); bg_lbl.setStyleSheet("color:#c0c0f0;font-size:12px;")
         self._tb_bg_btn = QPushButton()
         self._tb_bg_btn.setFixedSize(36, 36)
         self._tb_bg_btn.setStyleSheet(
@@ -378,7 +500,7 @@ class SettingsDialog(QDialog):
         bg_col.addWidget(self._tb_bg_btn, 0, Qt.AlignCenter)
         # Icon color
         ic_col = QVBoxLayout()
-        ic_lbl = QLabel("Icon / Teks"); ic_lbl.setStyleSheet("color:#c0c0f0;font-size:11px;")
+        ic_lbl = QLabel("Icon / Teks"); ic_lbl.setStyleSheet("color:#c0c0f0;font-size:12px;")
         self._tb_icon_btn = QPushButton()
         self._tb_icon_btn.setFixedSize(36, 36)
         self._tb_icon_btn.setStyleSheet(
@@ -431,7 +553,7 @@ class SettingsDialog(QDialog):
 
         hint_tb = QLabel("Pilih tombol mana yang tampil di toolbar screenshot.")
         hint_tb.setWordWrap(True)
-        hint_tb.setStyleSheet("color:#9999bb; font-size:11px;")
+        hint_tb.setStyleSheet("color:#9999bb; font-size:12px;")
         vtb.addWidget(hint_tb)
 
         self._ALL_BUTTONS = [
@@ -477,7 +599,9 @@ class SettingsDialog(QDialog):
         # Clear existing
         while self._colors_layout.count():
             item = self._colors_layout.takeAt(0)
-            if item.widget(): item.widget().deleteLater()
+            if item.widget():
+                item.widget().hide()
+                item.widget().deleteLater()
         self._color_btns.clear()
 
         cols = 8
@@ -485,9 +609,12 @@ class SettingsDialog(QDialog):
             btn = QPushButton()
             btn.setFixedSize(32, 32)
             btn.setToolTip(hex_c)
-            border = "3px solid #ffffff" if i == self._selected_color_idx else "1px solid #555"
+            border = "2px solid #ffffff" if i == self._selected_color_idx else "2px solid transparent"
+            # Use QPushButton{} selector so child stylesheet wins over _DARK's QPushButton rule
             btn.setStyleSheet(
-                f"background:{hex_c};border:{border};border-radius:16px;padding:0px;")
+                f"QPushButton {{ background:{hex_c}; border:{border}; "
+                f"border-radius:16px; padding:0px; outline:none; }}"
+                f"QPushButton:hover {{ border:2px solid #aaaaff; }}")
             btn.clicked.connect(lambda _, idx=i: self._select_color(idx))
             self._colors_layout.addWidget(btn, i // cols, i % cols)
             self._color_btns.append(btn)
@@ -564,7 +691,7 @@ class SettingsDialog(QDialog):
         lay.setContentsMargins(10, 10, 10, 10); lay.setSpacing(10)
 
         lbl = QLabel("Edit the name of your captures:")
-        lbl.setStyleSheet("color:#ccc; font-size:13px;")
+        lbl.setStyleSheet("color:#ccc; font-size:12px;")
         lay.addWidget(lbl)
 
         # Token buttons grid (2 columns)
@@ -634,6 +761,7 @@ class SettingsDialog(QDialog):
 
         # ── Configurable global hotkeys ──
         self._shortcut_defs = [
+            ("Open Settings",       "hotkey_settings",    "ctrl+shift+s"),
             ("Capture fullscreen",  "hotkey_fullscreen",  "ctrl+shift+f"),
         ]
         self._shortcut_widgets = {}
@@ -726,6 +854,7 @@ class SettingsDialog(QDialog):
         # Wire up conflict checker on all shortcut widgets
         # Build label map: cfg_key -> display label
         _labels = {
+            'hotkey_settings':   'Open Settings',
             'hotkey_fullscreen': 'Capture fullscreen',
             'shortcut_save':        'Accept / Save & Upload',
             'shortcut_cancel':      'Cancel capture',
@@ -860,12 +989,12 @@ class SettingsDialog(QDialog):
 
     def _export_config(self):
         path, _ = QFileDialog.getSaveFileName(
-            self, "Export Config", "xenshoot_config.json", "JSON (*.json)")
+            self, "Export Config", "kshot_config.json", "JSON (*.json)")
         if path:
             try:
                 with open(path, 'w') as f:
                     json.dump(self.config.config, f, indent=4)
-                QMessageBox.information(self, "XenShoot", f"Config exported to:\n{path}")
+                QMessageBox.information(self, "kshot", f"Config exported to:\n{path}")
             except Exception as e:
                 QMessageBox.warning(self, "Error", str(e))
 
@@ -879,7 +1008,7 @@ class SettingsDialog(QDialog):
                 for k, v in data.items():
                     self.config.set(k, v)
                 self._load_settings()
-                QMessageBox.information(self, "XenShoot", "Config imported.")
+                QMessageBox.information(self, "kshot", "Config imported.")
             except Exception as e:
                 QMessageBox.warning(self, "Error", str(e))
 

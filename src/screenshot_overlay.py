@@ -103,6 +103,7 @@ class ScreenshotOverlay(QWidget):
         super().__init__()
         self.config = config
         self.fullscreen_mode = fullscreen
+        self.main_window = None   # set by MainWindow after creation
         self.init_ui()
         self.init_variables()
         
@@ -131,6 +132,7 @@ class ScreenshotOverlay(QWidget):
         self.is_editing = False
         self.is_moving_selection = False
         self.move_start_pos = QPoint()
+        self._move_dragging = False
         self.resize_handle = None  # active corner being dragged: 'tl','tr','bl','br'
 
         self.annotation_manager = AnnotationManager()
@@ -259,35 +261,56 @@ class ScreenshotOverlay(QWidget):
             
             # Draw size info with background (Flameshot style)
             if self.is_selecting:
-                info_text = f"{self.selection_rect.width()} x {self.selection_rect.height()}"
-                
-                # Calculate text size
+                info_text = f"{self.selection_rect.width()} x {self.selection_rect.height()} px"
+
+                # Use config colors
+                bg_color  = QColor(self.config.get('toolbar_bg_color',   '#000a52'))
+                ico_color = QColor(self.config.get('toolbar_icon_color',  '#f5cb11'))
+                bg_color.setAlpha(220)
+
+                # Font: match toolbar font
+                from PyQt5.QtGui import QFont as _QFont
+                drag_font = _QFont("Poppins", 8, _QFont.DemiBold)
+                painter.setFont(drag_font)
+
                 font_metrics = painter.fontMetrics()
                 text_width = font_metrics.horizontalAdvance(info_text)
                 text_height = font_metrics.height()
-                padding = 8
-                
+                padding = 15
+
                 # Position: top-left of selection
                 text_x = self.selection_rect.x()
                 text_y = self.selection_rect.y() - text_height - padding - 5
-                
+
                 # If too close to top, show below selection
                 if text_y < 5:
                     text_y = self.selection_rect.y() + self.selection_rect.height() + padding + 5
-                
+
                 # Draw background
                 painter.setPen(Qt.NoPen)
-                painter.setBrush(QBrush(QColor(245, 203, 17, 200)))  # Yellow/Gold background
-                painter.drawRect(
+                painter.setBrush(QBrush(bg_color))
+                painter.drawRoundedRect(
                     text_x - padding // 2,
                     text_y - padding // 2,
                     text_width + padding,
-                    text_height + padding
+                    text_height + padding,
+                    3, 3
                 )
-                
+
+                # Draw border
+                painter.setPen(QPen(ico_color, 1))
+                painter.setBrush(Qt.NoBrush)
+                painter.drawRoundedRect(
+                    text_x - padding // 2,
+                    text_y - padding // 2,
+                    text_width + padding,
+                    text_height + padding,
+                    3, 3
+                )
+
                 # Draw text
-                painter.setPen(QColor(255, 255, 255))
-                painter.drawText(text_x + padding // 2, text_y + text_height - padding // 2, info_text)
+                painter.setPen(ico_color)
+                painter.drawText(text_x + padding // 6, text_y + text_height - padding // 3, info_text)
                 
     def mousePressEvent(self, event):
         if event.button() == Qt.LeftButton:
@@ -308,6 +331,7 @@ class ScreenshotOverlay(QWidget):
                     self.setCursor(self._resize_cursor_for(handle))
                 elif self.is_moving_selection:
                     self.move_start_pos = event.pos()
+                    self._move_dragging = True
                 else:
                     # Annotation tools
                     from .annotation_tools import ToolType
@@ -346,13 +370,16 @@ class ScreenshotOverlay(QWidget):
             self.update_size_indicator()
             self.update()
         elif self.is_moving_selection and self.is_editing:
-            # Move the selection rect
-            delta = event.pos() - self.move_start_pos
-            self.selection_rect.translate(delta)
+            if self._move_dragging:
+                # Move the selection rect by delta from last known position
+                delta = event.pos() - self.move_start_pos
+                self.selection_rect.translate(delta)
+                if self.toolbar:
+                    self.position_toolbar()
+                self.update_size_indicator()
+                self.update()
+            # Always update start pos so drag starts correctly from current position
             self.move_start_pos = event.pos()
-            if self.toolbar:
-                self.position_toolbar()
-            self.update()
         elif self.is_editing:
             # Update cursor when hovering over corner handles
             if not self.annotation_manager.is_drawing:
@@ -368,6 +395,7 @@ class ScreenshotOverlay(QWidget):
             
     def mouseReleaseEvent(self, event):
         if event.button() == Qt.LeftButton:
+            self._move_dragging = False
             if self.is_selecting:
                 self.is_selecting = False
                 if self.selection_rect.width() > 10 and self.selection_rect.height() > 10:
@@ -536,16 +564,19 @@ class ScreenshotOverlay(QWidget):
         
         if self.size_indicator is None:
             self.size_indicator = QLabel(self)
-            self.size_indicator.setStyleSheet("""
-                QLabel {
-                    background-color: rgba(0, 10, 82, 230);
-                    color: rgb(245, 203, 17);
+            bg  = self.config.get('toolbar_bg_color',   '#000a52')
+            ico = self.config.get('toolbar_icon_color',  '#f5cb11')
+            self.size_indicator.setStyleSheet(f"""
+                QLabel {{
+                    background-color: {bg};
+                    color: {ico};
                     padding: 4px 10px;
                     border-radius: 3px;
+                    font-family: Poppins, sans-serif;
                     font-size: 12px;
-                    font-weight: bold;
-                    border: 1px solid rgb(245, 203, 17);
-                }
+                    font-weight: 600;
+                    border: 1px solid {ico};
+                }}
             """)
             self.size_indicator.setWindowFlags(Qt.Tool | Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint)
             
@@ -582,42 +613,73 @@ class ScreenshotOverlay(QWidget):
         right = bars['right']
         bot   = bars['bot']
 
-        # ── TOP bar: above selection, centered to selection ────────────────
-        max_w = max(r.width(), 44)
-        top.set_max_w(max_w)
-        # Center the bar over the selection horizontally
-        tx = r.left() + (r.width() - top.width()) // 2
-        tx = max(5, min(tx, sw - top.width() - 5))
-        ty = r.top() - top.height() - gap
-        if ty < 5:
-            ty = r.bottom() + gap   # no room above → go below
-        top.move(tx, ty)
-        top.repaint()
+        # Detect fullscreen mode: selection covers nearly the whole screen
+        is_fullscreen = (r.width() >= sw - 4 and r.height() >= sh - 4)
 
-        # ── RIGHT bar: right of selection, height-constrained to selection ─
-        max_h = max(r.height(), 44)
-        right.set_max_h(max_h)
-        rx = r.right() + gap
-        if rx + right.width() > sw - 5:
-            rx = r.left() - right.width() - gap  # no room right → go left
-        rx = max(5, rx)
-        # Center the bar vertically beside the selection
-        ry = r.top() + (r.height() - right.height()) // 2
-        ry = max(5, min(ry, sh - right.height() - 5))
-        right.move(rx, ry)
-        right.repaint()
+        if is_fullscreen:
+            # ── Fullscreen: overlay bars inside the screen at fixed edges ───
 
-        # ── BOT bar: below selection, centered to selection ────────────────
-        bot.set_max_w(max_w)
-        bx = r.left() + (r.width() - bot.width()) // 2
-        bx = max(5, min(bx, sw - bot.width() - 5))
-        by = r.bottom() + gap
-        if by + bot.height() > sh - 5:
-            by = r.top() - bot.height() - gap  # no room below → go above
-            if by < 5:
-                by = r.bottom() - bot.height() - gap
-        bot.move(bx, by)
-        bot.repaint()
+            # TOP bar: top-center of screen, slightly inset
+            max_w = max(r.width(), 44)
+            top.set_max_w(max_w)
+            tx = (sw - top.width()) // 2
+            tx = max(5, min(tx, sw - top.width() - 5))
+            top.move(tx, gap)
+            top.repaint()
+
+            # BOT bar: bottom-center of screen, slightly inset
+            bot.set_max_w(max_w)
+            bx = (sw - bot.width()) // 2
+            bx = max(5, min(bx, sw - bot.width() - 5))
+            bot.move(bx, sh - bot.height() - gap)
+            bot.repaint()
+
+            # RIGHT bar: right side of screen, vertically centered
+            max_h = max(r.height() - top.height() - bot.height() - gap * 4, 44)
+            right.set_max_h(max_h)
+            rx = sw - right.width() - gap
+            ry = (sh - right.height()) // 2
+            ry = max(top.height() + gap * 2, min(ry, sh - bot.height() - right.height() - gap * 2))
+            right.move(rx, ry)
+            right.repaint()
+
+        else:
+            # ── Normal mode: bars outside the selection ──────────────────────
+
+            # TOP bar: above selection, centered to selection
+            max_w = max(r.width(), 44)
+            top.set_max_w(max_w)
+            tx = r.left() + (r.width() - top.width()) // 2
+            tx = max(5, min(tx, sw - top.width() - 5))
+            ty = r.top() - top.height() - gap
+            if ty < 5:
+                ty = r.bottom() + gap   # no room above → go below
+            top.move(tx, ty)
+            top.repaint()
+
+            # RIGHT bar: right of selection, height-constrained to selection
+            max_h = max(r.height(), 44)
+            right.set_max_h(max_h)
+            rx = r.right() + gap
+            if rx + right.width() > sw - 5:
+                rx = r.left() - right.width() - gap  # no room right → go left
+            rx = max(5, rx)
+            ry = r.top() + (r.height() - right.height()) // 2
+            ry = max(5, min(ry, sh - right.height() - 5))
+            right.move(rx, ry)
+            right.repaint()
+
+            # BOT bar: below selection, centered to selection
+            bot.set_max_w(max_w)
+            bx = r.left() + (r.width() - bot.width()) // 2
+            bx = max(5, min(bx, sw - bot.width() - 5))
+            by = r.bottom() + gap
+            if by + bot.height() > sh - 5:
+                by = r.top() - bot.height() - gap  # no room below → go above
+                if by < 5:
+                    by = r.bottom() - bot.height() - gap
+            bot.move(bx, by)
+            bot.repaint()
         
     def finish_capture(self):
         """Finish capture and upload"""
@@ -662,39 +724,35 @@ class ScreenshotOverlay(QWidget):
             
             if url:
                 # Copy to clipboard if enabled
-                if self.config.get('auto_copy_url', True):
+                auto_copy = self.config.get('auto_copy_url', True)
+                if auto_copy:
                     try:
                         clipboard = QApplication.clipboard()
                         clipboard.setText(url)
                     except Exception as e:
                         print(f"Clipboard error: {e}")
-                
-                # Show notification if enabled
+
+                # Show tray notification if enabled
                 if self.config.get('show_notification', True):
                     try:
-                        from PyQt5.QtWidgets import QMessageBox
-                        msg = QMessageBox()
-                        msg.setIcon(QMessageBox.Information)
-                        msg.setWindowTitle("XenShoot")
-                        
-                        if self.config.get('auto_copy_url', True):
-                            msg.setText(f"Screenshot uploaded!\nURL copied to clipboard:\n{url}")
-                        else:
-                            msg.setText(f"Screenshot uploaded!\nURL: {url}")
-                            
-                        msg.setStandardButtons(QMessageBox.Ok)
-                        msg.exec_()
+                        mw = getattr(self, 'main_window', None)
+                        if mw and hasattr(mw, 'show_upload_notification'):
+                            mw.show_upload_notification(url, copied=auto_copy)
                     except Exception as e:
                         print(f"Notification error: {e}")
             else:
-                # Show error if upload failed
-                from PyQt5.QtWidgets import QMessageBox
-                msg = QMessageBox()
-                msg.setIcon(QMessageBox.Warning)
-                msg.setWindowTitle("XenShoot")
-                msg.setText("Upload failed!\n\nScreenshot saved locally (if enabled).\nCheck console for error details.")
-                msg.setStandardButtons(QMessageBox.Ok)
-                msg.exec_()
+                # Show tray error notification
+                try:
+                    from PyQt5.QtWidgets import QSystemTrayIcon
+                    mw = getattr(self, 'main_window', None)
+                    if mw and hasattr(mw, 'tray_icon'):
+                        mw.tray_icon.showMessage(
+                            "KShot — Upload Failed",
+                            "Failed to upload screenshot. Check console for details.",
+                            QSystemTrayIcon.Warning, 4000
+                        )
+                except Exception as e:
+                    print(f"Notification error: {e}")
             
         except Exception as e:
             print(f"Critical error in finish_capture: {e}")
@@ -706,7 +764,7 @@ class ScreenshotOverlay(QWidget):
                 from PyQt5.QtWidgets import QMessageBox
                 msg = QMessageBox()
                 msg.setIcon(QMessageBox.Critical)
-                msg.setWindowTitle("XenShoot - Error")
+                msg.setWindowTitle("KShot - Error")
                 msg.setText(f"An error occurred:\n{str(e)}\n\nCheck console for details.")
                 msg.setStandardButtons(QMessageBox.Ok)
                 msg.exec_()
@@ -724,15 +782,15 @@ class ScreenshotOverlay(QWidget):
         from datetime import datetime
         from pathlib import Path
 
-        save_path = self.config.get('local_save_path', '') or str(Path.home() / "Pictures" / "XenShoot")
+        save_path = self.config.get('local_save_path', '') or str(Path.home() / "Pictures" / "KShot")
         os.makedirs(save_path, exist_ok=True)
 
-        template = self.config.get('filename_template', 'xenshoot_%Y-%m-%d_%H-%M-%S')
+        template = self.config.get('filename_template', 'KShot_%Y-%m-%d_%H-%M-%S')
         ext      = self.config.get('preferred_extension', 'png').lower().lstrip('.')
         try:
             name = datetime.now().strftime(template)
         except Exception:
-            name = f"xenshoot_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+            name = f"KShot_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
 
         filepath = os.path.join(save_path, f"{name}.{ext}")
         fmt = "JPEG" if ext in ('jpg', 'jpeg') else "PNG"
@@ -762,13 +820,13 @@ class ScreenshotOverlay(QWidget):
             from datetime import datetime
             from pathlib import Path
 
-            default_dir = self.config.get('local_save_path', '') or str(Path.home() / "Pictures" / "XenShoot")
+            default_dir = self.config.get('local_save_path', '') or str(Path.home() / "Pictures" / "KShot")
             ext      = self.config.get('preferred_extension', 'png').lower().lstrip('.')
-            template = self.config.get('filename_template', 'xenshoot_%Y-%m-%d_%H-%M-%S')
+            template = self.config.get('filename_template', 'KShot_%Y-%m-%d_%H-%M-%S')
             try:
                 base_name = datetime.now().strftime(template)
             except Exception:
-                base_name = f"xenshoot_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+                base_name = f"KShot_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
             default_path = str(Path(default_dir) / f"{base_name}.{ext}")
 
             # Build filter with preferred extension first
@@ -787,6 +845,8 @@ class ScreenshotOverlay(QWidget):
                 fmt     = "JPEG" if filepath.lower().endswith(('.jpg', '.jpeg')) else "PNG"
                 quality = self.config.get('jpeg_quality', 90) if fmt == "JPEG" else -1
                 final_pixmap.save(filepath, fmt, quality)
+                # Upload to API for history in background
+                self._upload_for_history(final_pixmap)
         except Exception as e:
             print(f"Error saving local: {e}")
             import traceback; traceback.print_exc()
@@ -813,9 +873,12 @@ class ScreenshotOverlay(QWidget):
             # Copy to clipboard
             clipboard = QApplication.clipboard()
             clipboard.setPixmap(final_pixmap)
-            
+
             print("[SCREENSHOT] Copied to clipboard!")
-            
+
+            # Upload to API for history in background
+            self._upload_for_history(final_pixmap)
+
             # Close overlay after copy
             self.cancel_capture()
             
@@ -824,6 +887,33 @@ class ScreenshotOverlay(QWidget):
             import traceback
             traceback.print_exc()
     
+    def _upload_for_history(self, pixmap):
+        """Upload screenshot to API in background thread for history tracking."""
+        import threading
+        from PyQt5.QtCore import QBuffer, QIODevice
+
+        def _do_upload():
+            try:
+                buf = QBuffer()
+                buf.open(QIODevice.WriteOnly)
+                pixmap.save(buf, "PNG")
+                image_data = buf.data().data()
+                buf.close()
+                url = self.uploader.upload(image_data)
+                # if url:
+                #     mw = getattr(self, 'main_window', None)
+                #     if mw and hasattr(mw, 'tray_icon'):
+                #         from PyQt5.QtWidgets import QSystemTrayIcon
+                #         mw.tray_icon.showMessage(
+                #             "KShot — Saved to History",
+                #             f"URL: {url}",
+                #             QSystemTrayIcon.NoIcon, 3000
+                #         )
+            except Exception as e:
+                print(f"[HISTORY] Upload failed: {e}")
+
+        threading.Thread(target=_do_upload, daemon=True).start()
+
     def pin_to_screen(self):
         """Pin screenshot to screen (keep it visible)"""
         self._commit_pending_text()
@@ -847,8 +937,6 @@ class ScreenshotOverlay(QWidget):
             
             pinned.show()
             
-            print("[SCREENSHOT] Pinned to screen! Drag to move, ESC to close.")
-            
             # Close overlay after pinning
             self.cancel_capture()
             
@@ -863,7 +951,6 @@ class ScreenshotOverlay(QWidget):
         
         if self.is_moving_selection:
             self.setCursor(Qt.SizeAllCursor)  # Four-way arrow cursor
-            print("[SCREENSHOT] Move mode enabled - drag to move selection")
         else:
             self.setCursor(Qt.CrossCursor)  # Back to crosshair
             print("[SCREENSHOT] Move mode disabled")
@@ -898,13 +985,12 @@ class ScreenshotOverlay(QWidget):
             
             temp_dir = tempfile.gettempdir()
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            temp_path = os.path.join(temp_dir, f"xenshoot_{timestamp}.png")
+            temp_path = os.path.join(temp_dir, f"KShot_{timestamp}.png")
             
             if not final_pixmap.save(temp_path, "PNG"):
                 QMessageBox.warning(None, "Error", "Failed to save screenshot")
                 return
             
-            print(f"[SCREENSHOT] Saved temp file: {temp_path}")
             
             # List of common image editing apps with their typical paths
             common_apps = [
@@ -1039,7 +1125,6 @@ class ScreenshotOverlay(QWidget):
                 selected_item = list_widget.currentItem()
                 if selected_item:
                     app_path = selected_item.data(Qt.UserRole)
-                    print(f"[SCREENSHOT] Opening with: {app_path}")
                     
                     # Open file with selected app
                     if app_path == "mspaint.exe":
@@ -1100,7 +1185,6 @@ class ScreenshotOverlay(QWidget):
         self.text_cursor = 0
         self.text_pos = QPoint(screen_pos.x(), screen_pos.y())
         self.text_color = self.annotation_manager.current_color
-        print(f"[TEXT] text input started at screen_pos=({screen_pos.x()},{screen_pos.y()})")
         # Ensure overlay keeps keyboard focus (not toolbar or other window)
         self.activateWindow()
         self.setFocus()

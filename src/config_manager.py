@@ -1,5 +1,5 @@
 """
-Configuration manager for XenShoot
+Configuration manager for KShot
 """
 
 import json
@@ -8,7 +8,7 @@ from pathlib import Path
 
 class ConfigManager:
     def __init__(self):
-        self.config_dir = Path.home() / ".xenshoot"
+        self.config_dir = Path.home() / ".KShot"
         self.config_file = self.config_dir / "config.json"
         self.config = self.load_config()
         
@@ -41,7 +41,7 @@ class ConfigManager:
             'backblaze_bucket_name': 'XenShot',
             
             # Laravel API Integration
-            'laravel_api_url': 'https://xenshot.cloud',
+            'laravel_api_url': 'https://kshot.cloud',
             'laravel_user_id': 1,  # Default user ID for testing
             
             # Other services (optional)
@@ -49,12 +49,13 @@ class ConfigManager:
             'imgbb_url_type': 'page',
             'imgur_client_id': '',
             'cloudinary_cloud_name': '',
-            'cloudinary_upload_preset': 'xenshoot',
+            'cloudinary_upload_preset': 'KShot',
             'custom_endpoint': '',
             
             # Global hotkeys
             'hotkey_area': 'ctrl+shift+a',
             'hotkey_fullscreen': 'ctrl+shift+f',
+            'hotkey_settings': 'ctrl+shift+s',
 
             # In-capture shortcuts
             'shortcut_save':        'return',
@@ -75,12 +76,12 @@ class ConfigManager:
             
             # Local settings
             'save_local_copy': True,
-            'local_save_path': str(Path.home() / "Pictures" / "XenShoot"),
+            'local_save_path': str(Path.home() / "Pictures" / "KShot"),
             'auto_copy_url': True,
             'show_notification': True,
 
             # Filename
-            'filename_template': 'xenshoot_%Y-%m-%d_%H-%M-%S',
+            'filename_template': 'KShot_%Y-%m-%d_%H-%M-%S',
             'preferred_extension': 'png',
             'jpeg_quality': 90,
 

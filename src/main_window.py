@@ -1,5 +1,5 @@
 """
-Main window and system tray for XenShoot
+Main window and system tray for KShot
 """
 
 from PyQt5.QtWidgets import QMainWindow, QSystemTrayIcon, QMenu, QAction, QApplication
@@ -18,7 +18,7 @@ class MainWindow(QMainWindow):
         self.init_tray()
         
     def init_ui(self):
-        self.setWindowTitle("XenShoot")
+        self.setWindowTitle("KShot")
         self.setGeometry(100, 100, 400, 300)
         # Hide main window, only show tray icon
         self.hide()
@@ -26,7 +26,7 @@ class MainWindow(QMainWindow):
     def init_tray(self):
         # Load icon from file
         import os
-        icon_path = os.path.join(os.path.dirname(__file__), "Logo", "ChatGPT Image Apr 29, 2026, 04_02_34 PM-Photograph-4k-by Nero AI Image Upscaler.png")
+        icon_path = os.path.join(os.path.dirname(__file__), "Logo", "logo.png")
         
         if os.path.exists(icon_path):
             # Use custom icon from file
@@ -53,11 +53,8 @@ class MainWindow(QMainWindow):
                 painter.drawPixmap(0, 0, icon_pixmap)
                 painter.end()
                 icon_pixmap = final_pixmap
-            
-            print(f"[TRAY] Loaded icon from: {icon_path} (scaled to {icon_size}x{icon_size})")
         else:
             # Fallback: Create a simple icon programmatically
-            print(f"[TRAY] Icon file not found at: {icon_path}, using fallback")
             icon_pixmap = QPixmap(128, 128)
             icon_pixmap.fill(Qt.transparent)
             painter = QPainter(icon_pixmap)
@@ -72,10 +69,10 @@ class MainWindow(QMainWindow):
         # Create tray menu
         tray_menu = QMenu()
         
-        capture_action = QAction("Capture Screenshot (Ctrl+Shift+A)", self)
+        capture_action = QAction("Area Capture", self)
         capture_action.triggered.connect(self.start_capture)
         
-        fullscreen_action = QAction("Capture Fullscreen (Ctrl+Shift+F)", self)
+        fullscreen_action = QAction("Fullscreen Capture", self)
         fullscreen_action.triggered.connect(self.capture_fullscreen)
         
         settings_action = QAction("Settings", self)
@@ -91,27 +88,34 @@ class MainWindow(QMainWindow):
         tray_menu.addAction(quit_action)
         
         self.tray_icon.setContextMenu(tray_menu)
-        self.tray_icon.setToolTip("XenShoot - Screenshot Tool")
+        self.tray_icon.setToolTip("KShot")
         self.tray_icon.show()
         
         # Show welcome notification when app starts
-        self.show_startup_notification()
+        # self.show_startup_notification()
         
     def show_startup_notification(self):
         """Show notification when app starts"""
         if self.tray_icon.supportsMessages():
             self.tray_icon.showMessage(
-                "XenShoot",
+                "KShot",
                 "Hello, I'm here! Click icon in the tray to take a screenshot or click with a right button to see more options.",
-                QSystemTrayIcon.NoIcon,  # Use custom icon from tray instead of default
-                3000  # Show for 3 seconds
+                QSystemTrayIcon.NoIcon,
+                3000
             )
+
+    def show_upload_notification(self, url, copied=True):
+        """Show tray notification after upload."""
+        if self.tray_icon.supportsMessages():
+            msg = "URL copied to clipboard!" if copied else f"Uploaded: {url}"
+            self.tray_icon.showMessage("Image Uploaded!", msg, QSystemTrayIcon.NoIcon, 4000)
         
     def start_capture(self):
         """Start area screenshot capture"""
         try:
             if self.screenshot_overlay is None or not self.screenshot_overlay.isVisible():
                 self.screenshot_overlay = ScreenshotOverlay(self.config)
+                self.screenshot_overlay.main_window = self
                 self.screenshot_overlay.show()
         except Exception as e:
             print(f"Error starting capture: {e}")
@@ -123,6 +127,7 @@ class MainWindow(QMainWindow):
         try:
             if self.screenshot_overlay is None or not self.screenshot_overlay.isVisible():
                 self.screenshot_overlay = ScreenshotOverlay(self.config, fullscreen=True)
+                self.screenshot_overlay.main_window = self
                 self.screenshot_overlay.show()
         except Exception as e:
             print(f"Error capturing fullscreen: {e}")
@@ -131,8 +136,12 @@ class MainWindow(QMainWindow):
             
     def show_settings(self):
         """Show settings dialog centered on screen"""
+        # Prevent opening multiple instances
+        if hasattr(self, '_settings_open') and self._settings_open:
+            return
+        self._settings_open = True
         from .settings_dialog import SettingsDialog
-        dialog = SettingsDialog(self.config, self)
+        dialog = SettingsDialog(self.config, None)
         # Center on primary screen
         screen = QApplication.primaryScreen().availableGeometry()
         dialog.adjustSize()
@@ -140,11 +149,14 @@ class MainWindow(QMainWindow):
             screen.center().x() - dialog.width() // 2,
             screen.center().y() - dialog.height() // 2,
         )
-        if dialog.exec_() == dialog.Accepted and self.hotkey_manager:
+        result = dialog.exec_()
+        self._settings_open = False
+        if result == dialog.Accepted and self.hotkey_manager:
             # Apply new hotkeys immediately without restart
             self.hotkey_manager.update_hotkeys(
-                self.config.get('hotkey_area', 'ctrl+shift+a'),
-                self.config.get('hotkey_fullscreen', 'ctrl+shift+f')
+                self.config.get('hotkey_area',       'ctrl+shift+a'),
+                self.config.get('hotkey_fullscreen',  'ctrl+shift+f'),
+                self.config.get('hotkey_settings',    'ctrl+shift+s'),
             )
         
     def quit_app(self):

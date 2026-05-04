@@ -1,5 +1,5 @@
 """
-Global hotkey manager for XenShoot
+Global hotkey manager for KShot
 """
 
 from pynput import keyboard
@@ -10,6 +10,7 @@ import sys
 class HotkeyManager(QThread):
     capture_signal = pyqtSignal()
     capture_fullscreen_signal = pyqtSignal()
+    open_settings_signal = pyqtSignal()
     error_signal = pyqtSignal(str)
     
     def __init__(self, main_window):
@@ -17,16 +18,19 @@ class HotkeyManager(QThread):
         self.main_window = main_window
         self.capture_signal.connect(main_window.start_capture)
         self.capture_fullscreen_signal.connect(main_window.capture_fullscreen)
+        self.open_settings_signal.connect(main_window.show_settings)
         
         # Get hotkeys from config
         config = main_window.config
-        self.area_hotkey = self.parse_hotkey(config.get('hotkey_area', 'ctrl+shift+a'))
-        self.full_hotkey = self.parse_hotkey(config.get('hotkey_fullscreen', 'ctrl+shift+f'))
+        self.area_hotkey     = self.parse_hotkey(config.get('hotkey_area',       'ctrl+shift+a'))
+        self.full_hotkey     = self.parse_hotkey(config.get('hotkey_fullscreen',  'ctrl+shift+f'))
+        self.settings_hotkey = self.parse_hotkey(config.get('hotkey_settings',    'ctrl+shift+s'))
         
         self.current_keys = set()
         self.lock = threading.Lock()
-        self.triggered_area = False
-        self.triggered_full = False
+        self.triggered_area     = False
+        self.triggered_full     = False
+        self.triggered_settings = False
         self.listener = None
         self.running = False
         
@@ -53,10 +57,6 @@ class HotkeyManager(QThread):
     def run(self):
         """Run hotkey listener"""
         try:
-            print(f"[HotkeyManager] Starting listener...")
-            print(f"[HotkeyManager] Area hotkey: {self.area_hotkey}")
-            print(f"[HotkeyManager] Full hotkey: {self.full_hotkey}")
-            
             self.running = True
             self.listener = keyboard.Listener(
                 on_press=self.on_press,
@@ -64,7 +64,6 @@ class HotkeyManager(QThread):
                 suppress=False  # Don't suppress keys for other apps
             )
             self.listener.start()
-            print("[HotkeyManager] Listener started successfully!")
             
             # Keep thread alive
             while self.running:
@@ -81,14 +80,16 @@ class HotkeyManager(QThread):
         if self.listener:
             self.listener.stop()
 
-    def update_hotkeys(self, area_str, full_str):
+    def update_hotkeys(self, area_str, full_str, settings_str=None):
         """Restart listener with new hotkey strings (called after settings save)"""
-        print(f"[HotkeyManager] Updating hotkeys: area={area_str}, full={full_str}")
-        self.area_hotkey = self.parse_hotkey(area_str)
-        self.full_hotkey = self.parse_hotkey(full_str)
+        self.area_hotkey     = self.parse_hotkey(area_str)
+        self.full_hotkey     = self.parse_hotkey(full_str)
+        if settings_str:
+            self.settings_hotkey = self.parse_hotkey(settings_str)
         self.current_keys.clear()
-        self.triggered_area = False
-        self.triggered_full = False
+        self.triggered_area     = False
+        self.triggered_full     = False
+        self.triggered_settings = False
         # Restart the pynput listener so it picks up nothing stale
         if self.listener:
             self.listener.stop()
@@ -98,7 +99,6 @@ class HotkeyManager(QThread):
             suppress=False
         )
         self.listener.start()
-        print(f"[HotkeyManager] Listener restarted with area={self.area_hotkey}, full={self.full_hotkey}")
             
     def normalize_key(self, key):
         """Normalize key to string"""
@@ -145,26 +145,27 @@ class HotkeyManager(QThread):
                 normalized = self.normalize_key(key)
                 if normalized:
                     self.current_keys.add(normalized)
-                    print(f"[HotkeyManager] Key pressed: {normalized}, Current keys: {self.current_keys}")
 
                 # Print Screen → area capture (fixed, not configurable)
                 if normalized == 'print_screen' and not self.triggered_area:
-                    print(f"[HotkeyManager] Print Screen → area capture!")
                     self.triggered_area = True
                     self.capture_signal.emit()
                     return
 
                 # Check for configurable area capture hotkey (secondary)
                 if not self.triggered_area and self.area_hotkey.issubset(self.current_keys):
-                    print(f"[HotkeyManager] Area hotkey triggered!")
                     self.triggered_area = True
                     self.capture_signal.emit()
-                    
+
                 # Check for fullscreen capture hotkey
                 if not self.triggered_full and self.full_hotkey.issubset(self.current_keys):
-                    print(f"[HotkeyManager] Fullscreen hotkey triggered!")
                     self.triggered_full = True
                     self.capture_fullscreen_signal.emit()
+
+                # Check for open settings hotkey
+                if not self.triggered_settings and self.settings_hotkey.issubset(self.current_keys):
+                    self.triggered_settings = True
+                    self.open_settings_signal.emit()
         except Exception as e:
             print(f"[HotkeyManager] Error in on_press: {e}")
             
@@ -175,11 +176,11 @@ class HotkeyManager(QThread):
                 normalized = self.normalize_key(key)
                 if normalized:
                     self.current_keys.discard(normalized)
-                    print(f"[HotkeyManager] Key released: {normalized}, Current keys: {self.current_keys}")
                     
-                # Reset triggers when keys released
-                if normalized in ('ctrl', 'shift', 'print_screen'):
-                    self.triggered_area = False
-                    self.triggered_full = False
+                # Reset all triggers on any key release
+                # (covers cases where modifier release is missed due to focus change)
+                self.triggered_area     = False
+                self.triggered_full     = False
+                self.triggered_settings = False
         except Exception as e:
             print(f"[HotkeyManager] Error in on_release: {e}")

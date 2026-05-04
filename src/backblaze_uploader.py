@@ -14,7 +14,7 @@ class BackBlazeUploader:
         self.endpoint = config.get('backblaze_endpoint', '')
         self.access_key_id = config.get('backblaze_access_key_id', '')
         self.secret_access_key = config.get('backblaze_secret_access_key', '')
-        self.bucket_name = config.get('backblaze_bucket_name', 'xenshoot')
+        self.bucket_name = config.get('backblaze_bucket_name', 'XenShot')
         
     def is_configured(self):
         """Check if BackBlaze is properly configured"""
@@ -49,7 +49,7 @@ class BackBlazeUploader:
             )
             
             # Upload file
-            object_key = f'screenshots/{filename}'
+            object_key = f'images/{filename}'
             
             # BackBlaze B2 doesn't support ACL via S3 API
             # Bucket must be set to Public in BackBlaze console
@@ -62,12 +62,9 @@ class BackBlazeUploader:
                 }
             )
             
-            # Construct public URL
-            # BackBlaze B2 public URL format for public buckets
-            # Use bucket NAME (not ID) for friendly URLs
-            # Format: https://f005.backblazeb2.com/file/BUCKET_NAME/path/to/file
-            public_url = f"https://f005.backblazeb2.com/file/{self.bucket_name}/{object_key}"
-            
+            # Construct public URL using custom domain
+            public_url = f"https://image.kshot.cloud/{object_key}"
+
             return public_url
             
         except ClientError as e:
@@ -91,7 +88,7 @@ class BackBlazeUploader:
                 region_name='us-east-005'
             )
             
-            object_key = f'screenshots/{filename}'
+            object_key = f'images/{filename}'
             s3_client.delete_object(Bucket=self.bucket_name, Key=object_key)
             
             return True
@@ -99,7 +96,7 @@ class BackBlazeUploader:
         except Exception as e:
             raise Exception(f"Failed to delete from BackBlaze B2: {str(e)}")
     
-    def list_files(self, prefix='screenshots/', max_keys=100):
+    def list_files(self, prefix='images/', max_keys=100):
         """List files in BackBlaze B2 bucket"""
         if not self.is_configured():
             raise Exception("BackBlaze B2 not configured")
@@ -126,7 +123,7 @@ class BackBlazeUploader:
                         'key': obj['Key'],
                         'size': obj['Size'],
                         'last_modified': obj['LastModified'],
-                        'url': f"https://f005.backblazeb2.com/file/{self.bucket_name}/{obj['Key']}"
+                        'url': f"https://image.kshot.cloud/{obj['Key']}"
                     })
             
             return files
