@@ -10,8 +10,9 @@ import io
 from PIL import Image
 
 class ImageUploader:
-    def __init__(self, config):
+    def __init__(self, config, auth_manager=None):
         self.config = config
+        self.auth_manager = auth_manager
         self.upload_service = config.get('upload_service', 'imgbb')
         
     def upload(self, image_data):
@@ -61,57 +62,63 @@ class ImageUploader:
         # Upload to Backblaze
         url = bb.upload(image_data, filename)
         
-        # If upload successful, send metadata to Laravel API
+        # If upload successful, send metadata to Laravel API in background
         if url:
-            self.send_to_laravel_api(url, filename, image_data)
-        
+            import threading
+            threading.Thread(
+                target=self.send_to_laravel_api,
+                args=(url, filename, image_data),
+                daemon=True
+            ).start()
+
         return url
     
     def send_to_laravel_api(self, file_url, filename, image_data):
         """Send screenshot metadata to Laravel API"""
         try:
-            # Get Laravel API URL from config (default to localhost)
-            laravel_api_url = self.config.get('laravel_api_url', 'http://127.0.0.1:8000')
-            
-            # Get user_id from config (default to 1 for testing)
-            user_id = self.config.get('laravel_user_id', 1)
-            
+            laravel_api_url = self.config.get('laravel_api_url', 'https://kshot.cloud')
+
+            # Resolve identifier: prefer username from auth session, fall back to config user_id
+            if self.auth_manager and self.auth_manager.is_logged_in():
+                payload_id = {'username': self.auth_manager.username}
+                print(f"[LARAVEL API] Sending as username={self.auth_manager.username}")
+            else:
+                fallback_id = self.config.get('laravel_user_id', 1)
+                payload_id = {'user_id': fallback_id}
+                print(f"[LARAVEL API] Auth not available, falling back to user_id={fallback_id}")
+
             # Get image dimensions
             try:
                 from PIL import Image as PILImage
                 img = PILImage.open(io.BytesIO(image_data))
                 width, height = img.size
                 file_size = len(image_data)
-            except:
-                width = None
-                height = None
+            except Exception:
+                width = height = None
                 file_size = len(image_data)
-            
-            # Prepare data
+
             data = {
-                'user_id': user_id,
-                'filename': filename,
-                'file_url': file_url,
+                **payload_id,
+                'filename':  filename,
+                'file_url':  file_url,
                 'file_size': file_size,
-                'width': width,
-                'height': height,
+                'width':     width,
+                'height':    height,
             }
-            
-            # Send to Laravel API
+
             response = requests.post(
                 f"{laravel_api_url}/api/screenshots/upload",
                 json=data,
-                timeout=10
+                timeout=10,
             )
-            
+
             if response.status_code in (200, 201):
-                print(f"[LARAVEL API] Screenshot metadata saved successfully")
+                print("[LARAVEL API] Screenshot metadata saved successfully")
             else:
-                print(f"[LARAVEL API] Failed to save metadata: {response.status_code} (server-side error, upload still succeeded)")
-                
+                print(f"[LARAVEL API] Failed to save metadata: {response.status_code}")
+
         except Exception as e:
             print(f"[LARAVEL API] Error sending to API: {e}")
-            # Don't show error to user, just log it
             
     def upload_imgbb(self, image_data):
         """Upload to ImgBB"""

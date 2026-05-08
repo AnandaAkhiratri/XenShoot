@@ -25,11 +25,11 @@ class ShortcutCapture(QPushButton):
     conflict_detected = pyqtSignal(str, str)   # (attempted, conflicting_label)
 
     _IDLE = ("background:#2d2d2d;color:#f0f0f0;border:1px solid #555;"
-             "border-radius:4px;padding:4px 12px;font-family:monospace;font-size:12px;")
+             "border-radius:4px;padding:4px 12px;font-family:monospace;font-size:14px;")
     _REC  = ("background:#1a3a5c;color:#7ec8e3;border:2px solid #7ec8e3;"
-             "border-radius:4px;padding:4px 12px;font-family:monospace;font-size:12px;")
+             "border-radius:4px;padding:4px 12px;font-family:monospace;font-size:14px;")
     _ERR  = ("background:#3a1a1a;color:#ff6b6b;border:2px solid #ff4444;"
-             "border-radius:4px;padding:4px 12px;font-family:monospace;font-size:12px;")
+             "border-radius:4px;padding:4px 12px;font-family:monospace;font-size:14px;")
 
     def __init__(self, shortcut="", parent=None):
         super().__init__(parent)
@@ -125,44 +125,44 @@ QTabWidget::pane       { border:1px solid #3a3a5c; background:#0b1d3a; }
 QTabBar::tab           { background:#0b1d3a; color:#9999bb;
                          padding:0px; min-width:64px; max-width:64px; min-height:38px;
                          border:1px solid #3a3a5c; border-bottom:none;
-                         border-radius:4px 4px 0 0; font-size:12px; }
+                         border-radius:4px 4px 0 0; font-size:15px; }
 QTabBar::tab:selected  { background:#1a1a2e; color:#ffffff; font-weight:bold; }
 QTabBar::tab:hover     { color:#ddddff; }
 QGroupBox              { color:#c0c0e0; border:1px solid #4a4a7a; border-radius:6px;
-                         margin-top:12px; padding-top:12px; font-weight:bold; font-size:12px; }
+                         margin-top:12px; padding-top:12px; font-weight:bold; font-size:15px; }
 QGroupBox::title       { subcontrol-origin:margin; left:12px; padding:0 6px;
                          color:#bcbec2; }
-QCheckBox              { color:#e0e0f8; spacing:8px; font-size:12px; }
+QCheckBox              { color:#e0e0f8; spacing:8px; font-size:15px; }
 QCheckBox::indicator   { width:17px; height:17px; border:2px solid #6060a0;
                          border-radius:3px; background:#252540; }
 QCheckBox::indicator:checked   { background:#0e4689; border-color:#8080ff;
                                   image: none; }
 QCheckBox::indicator:unchecked { background:#252540; }
 QLineEdit              { background:#252540; color:#f0f0ff; border:1px solid #5050a0;
-                         border-radius:4px; padding:5px 8px; font-size:12px; }
+                         border-radius:4px; padding:5px 8px; font-size:15px; }
 QLineEdit:focus        { border:1px solid #8080ff; }
 QLineEdit[readOnly="true"] { background:#1e1e35; color:#8888aa; }
 QComboBox              { background:#252540; color:#f0f0ff; border:1px solid #5050a0;
-                         border-radius:4px; padding:5px 8px; font-size:12px; }
+                         border-radius:4px; padding:5px 8px; font-size:15px; }
 QComboBox QAbstractItemView { background:#252540; color:#f0f0ff; border:1px solid #5050a0; }
 QSpinBox               { background:#252540; color:#f0f0ff; border:1px solid #5050a0;
-                         border-radius:4px; padding:4px 6px; font-size:12px; }
+                         border-radius:4px; padding:4px 6px; font-size:15px; }
 QPushButton            { background:#2d2d50; color:#e0e0f8; border:1px solid #5050a0;
-                         border-radius:4px; padding:6px 16px; font-size:12px; }
+                         border-radius:4px; padding:6px 16px; font-size:15px; }
 QPushButton:hover      { background:#3a3a6a; border-color:#9090d0; }
 #titlebar QPushButton  { background:transparent; color:#cccccc; border:none;
-                         border-radius:4px; padding:0px; font-size:14px; }
+                         border-radius:4px; padding:0px; font-size:15px; }
 #titlebar QPushButton:hover        { background:#3a3a4a; color:#ffffff; }
 #titlebar QPushButton#close_btn:hover { background:#c0392b; color:#ffffff; }
 QPushButton#primary    { background:#3a3adc; border-color:#6060ff; color:white;
                          font-weight:bold; }
 QPushButton#primary:hover { background:#5050ff; }
 QPushButton#token_btn  { background:#2a2a48; color:#c0c0f0; border:1px solid #4a4a80;
-                         border-radius:4px; padding:7px 4px; font-size:12px; }
+                         border-radius:4px; padding:7px 4px; font-size:15px; }
 QPushButton#token_btn:hover { background:#3a3a60; border-color:#8080c0; }
-QLabel                 { color:#c8c8e8; font-size:12px; }
+QLabel                 { color:#c8c8e8; font-size:15px; }
 QHeaderView::section   { background:#252540; color:#a0a0cc; border:none;
-                         border-bottom:1px solid #3a3a5c; padding:7px; font-size:12px; }
+                         border-bottom:1px solid #3a3a5c; padding:7px; font-size:15px; }
 QScrollArea            { border:none; background:transparent; }
 QScrollBar:vertical    { background:#1a1a2e; width:10px; }
 QScrollBar::handle:vertical { background:#4040a0; border-radius:5px; min-height:20px; }
@@ -244,21 +244,32 @@ class SettingsDialog(QDialog):
 
         _TB_ICON_DIR = os.path.join(os.path.dirname(__file__), 'Logo', 'titlebar')
 
+        _ICONS = {"minimize": "─", "maximize": "□", "close": "×"}
+        _SS_BASE = (
+            "QPushButton { background:transparent; border:none; border-radius:4px;"
+            "color:#aaa; font-size:16px; font-weight:400; padding:0; margin:0; }"
+            "QPushButton:hover { background:#3a3a4a; color:#fff; }"
+        )
+
         def _tb_btn(icon_name, obj_name, slot):
-            btn = QPushButton()
+            btn = QPushButton(_ICONS.get(icon_name, ""))
             btn.setObjectName(obj_name)
-            btn.setFixedSize(32, 28)
+            btn.setFixedSize(28, 28)
             btn.setCursor(Qt.ArrowCursor)
+            btn.setStyleSheet(_SS_BASE)
             btn.clicked.connect(slot)
-            icon_path = os.path.join(_TB_ICON_DIR, f'{icon_name}.svg')
-            if os.path.exists(icon_path):
-                btn.setIcon(QIcon(icon_path))
-                btn.setIconSize(QSize(14, 14))
             return btn
 
-        tb_lay.addWidget(_tb_btn("minimize", "min_btn",   self.showMinimized))
-        tb_lay.addWidget(_tb_btn("maximize", "max_btn",   self._toggle_maximize))
-        tb_lay.addWidget(_tb_btn("close",    "close_btn", self.reject))
+        min_btn = _tb_btn("minimize", "min_btn",   self.showMinimized)
+        max_btn = _tb_btn("maximize", "max_btn",   self._toggle_maximize)
+        cls_btn = _tb_btn("close",    "close_btn", self.reject)
+        cls_btn.setStyleSheet(
+            _SS_BASE +
+            "QPushButton#close_btn:hover { background:#c0392b; color:#fff; }"
+        )
+        tb_lay.addWidget(min_btn)
+        tb_lay.addWidget(max_btn)
+        tb_lay.addWidget(cls_btn)
 
         root.addWidget(self._titlebar)
 
@@ -306,6 +317,7 @@ class SettingsDialog(QDialog):
         _add_tab(self._tab_interface(), 'interface', '🎨')
         _add_tab(self._tab_filename(),  'filename',  '✎')
         _add_tab(self._tab_shortcuts(), 'shortcuts', '⌨')
+        _add_tab(self._tab_history(),   'history',   '🕒')
         content_lay.addWidget(self.tabs)
 
         btn_row = QHBoxLayout()
@@ -318,6 +330,311 @@ class SettingsDialog(QDialog):
         content_lay.addLayout(btn_row)
 
     # ── General tab ──────────────────────────────────────────────────────────
+
+    # ── History tab ──────────────────────────────────────────────────────
+
+    def _tab_history(self):
+        from PyQt5.QtCore import QSize
+        from .history_manager import HistoryManager
+        self._history_mgr = HistoryManager()
+
+        outer = QWidget()
+        lay = QVBoxLayout(outer)
+        lay.setContentsMargins(8, 8, 8, 8)
+        lay.setSpacing(8)
+
+        # Header row
+        hdr = QHBoxLayout()
+        title = QLabel("Screenshot History (last 30)")
+        title.setStyleSheet("font-size:15px; font-weight:bold; color:#e0e0f8;")
+        hdr.addWidget(title)
+        hdr.addStretch()
+        refresh_btn = QPushButton("⟳  Refresh")
+        refresh_btn.setFixedHeight(32)
+        refresh_btn.setMinimumWidth(110)
+        refresh_btn.clicked.connect(self._history_refresh)
+        hdr.addWidget(refresh_btn)
+
+        clear_btn = QPushButton("🗑  Clear All")
+        clear_btn.setFixedHeight(32)
+        clear_btn.setMinimumWidth(120)
+        clear_btn.clicked.connect(self._history_clear_all)
+        hdr.addWidget(clear_btn)
+        lay.addLayout(hdr)
+
+        # Scroll area containing the grid
+        self._history_scroll = QScrollArea()
+        self._history_scroll.setWidgetResizable(True)
+        self._history_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self._history_scroll.setStyleSheet("QScrollArea { border: none; }")
+        lay.addWidget(self._history_scroll)
+
+        self._history_refresh()
+        return outer
+
+    def _history_refresh(self):
+        from .history_manager import HistoryManager
+        entries = self._history_mgr.load()
+
+        container = QWidget()
+        grid = QGridLayout(container)
+        grid.setSpacing(10)
+        grid.setContentsMargins(8, 8, 8, 8)
+        grid.setAlignment(Qt.AlignTop | Qt.AlignLeft)
+
+        COLS = 2
+        for idx, entry in enumerate(entries):
+            row, col = divmod(idx, COLS)
+            card = self._history_card(entry)
+            grid.addWidget(card, row, col, Qt.AlignTop)
+
+        if not entries:
+            # Replace grid container with a centered-label widget
+            empty_container = QWidget()
+            empty_container.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+            vl = QVBoxLayout(empty_container)
+            vl.addStretch()
+            empty = QLabel("No history yet.\nScreenshots will appear here after capture.")
+            empty.setAlignment(Qt.AlignCenter)
+            empty.setStyleSheet("color:#666; font-size:15px;")
+            vl.addWidget(empty)
+            vl.addStretch()
+            self._history_scroll.setWidget(empty_container)
+            return
+
+        self._history_scroll.setWidget(container)
+
+    def _history_card(self, entry):
+        """
+        Compact card: thumbnail fills top, thin bottom strip with timestamp + 3 icon buttons.
+        Buttons are always visible — no hover magic needed.
+        """
+        from .history_manager import HistoryManager
+
+        THUMB_H  = 140
+        STRIP_H  = 30
+
+        url = entry.get("url", "")
+        ts  = entry.get("timestamp", "")[:16].replace("T", " ")
+
+        # ── Outer card ────────────────────────────────────────────────────
+        card = QFrame()
+        card.setFixedHeight(THUMB_H + STRIP_H)
+        card.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        card.setStyleSheet(
+            "QFrame { background:#12192e; border:1px solid #2a2a50; border-radius:8px; }"
+        )
+        vlay = QVBoxLayout(card)
+        vlay.setContentsMargins(0, 0, 0, 0)
+        vlay.setSpacing(0)
+
+        # ── Thumbnail ─────────────────────────────────────────────────────
+        thumb_lbl = QLabel()
+        thumb_lbl.setFixedHeight(THUMB_H)
+        thumb_lbl.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        thumb_lbl.setAlignment(Qt.AlignCenter)
+        thumb_lbl.setStyleSheet(
+            "border:none; background:#0a0a1a;"
+            "border-top-left-radius:8px; border-top-right-radius:8px;"
+        )
+        if entry.get("thumbnail"):
+            px = HistoryManager.b64_to_pixmap(entry["thumbnail"])
+            if px and not px.isNull():
+                thumb_lbl.setPixmap(
+                    px.scaled(400, THUMB_H, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+                )
+            else:
+                thumb_lbl.setText("No preview")
+        else:
+            thumb_lbl.setText("No preview")
+        vlay.addWidget(thumb_lbl)
+
+        # ── Bottom strip ─────────────────────────────────────────────────
+        strip = QWidget()
+        strip.setFixedHeight(STRIP_H)
+        strip.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        strip.setStyleSheet(
+            "QWidget { background:#1a2240; border:none;"
+            "border-bottom-left-radius:8px; border-bottom-right-radius:8px; }"
+        )
+        slay = QHBoxLayout(strip)
+        slay.setContentsMargins(8, 0, 6, 0)
+        slay.setSpacing(4)
+
+        ts_lbl = QLabel(ts)
+        ts_lbl.setStyleSheet("color:#888; font-size:13px; border:none; background:transparent;")
+        slay.addWidget(ts_lbl)
+        slay.addStretch()
+
+        _btn_ss = (
+            "QPushButton { background:transparent; border:none;"
+            "border-radius:4px; font-size:13px; padding:2px 4px; color:#ccc; }"
+            "QPushButton:hover { background:#ffffff22; }"
+        )
+
+        # Preview button
+        prev_btn = QPushButton("🔍")
+        prev_btn.setFixedSize(26, 26)
+        prev_btn.setToolTip("Preview")
+        prev_btn.setStyleSheet(_btn_ss)
+        prev_btn.clicked.connect(lambda _, e=entry: self._history_preview(e))
+        slay.addWidget(prev_btn)
+
+        # Copy URL + Open in Browser (only if URL exists)
+        if url:
+            copy_btn = QPushButton("🔗")
+            copy_btn.setFixedSize(26, 26)
+            copy_btn.setToolTip("Copy URL")
+            copy_btn.setStyleSheet(_btn_ss)
+            copy_btn.clicked.connect(lambda _, u=url: self._history_copy_url(u))
+            slay.addWidget(copy_btn)
+
+            open_btn = QPushButton("🌐")
+            open_btn.setFixedSize(26, 26)
+            open_btn.setToolTip("Open in Browser")
+            open_btn.setStyleSheet(_btn_ss)
+            open_btn.clicked.connect(lambda _, u=url: self._history_open_browser(u))
+            slay.addWidget(open_btn)
+
+        # Delete button
+        del_btn = QPushButton("🗑")
+        del_btn.setFixedSize(26, 26)
+        del_btn.setToolTip("Delete")
+        del_btn.setStyleSheet(
+            "QPushButton { background:transparent; border:none;"
+            "border-radius:4px; font-size:13px; padding:2px 4px; color:#ff6b6b; }"
+            "QPushButton:hover { background:#ff000033; }"
+        )
+        del_btn.clicked.connect(lambda _, eid=entry["id"]: self._history_delete(eid))
+        slay.addWidget(del_btn)
+
+        vlay.addWidget(strip)
+        return card
+
+    def _history_preview(self, entry):
+        from .history_manager import HistoryManager
+        from PyQt5.QtWidgets import QApplication as _QApp
+
+        # Load full-resolution image from disk (falls back to thumbnail)
+        px = HistoryManager.load_full_pixmap(entry)
+        if not px or px.isNull():
+            return
+
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Preview — KShot")
+        dlg.setWindowFlags(Qt.Dialog | Qt.FramelessWindowHint)
+        dlg.setStyleSheet(
+            "QDialog { background:#0d1117; border:1px solid #30363d; border-radius:10px; }"
+            "QLabel  { color:#e6edf3; }"
+            "QPushButton { border-radius:6px; padding:6px 18px; font-size:14px; }"
+        )
+
+        vlay = QVBoxLayout(dlg)
+        vlay.setContentsMargins(16, 16, 16, 14)
+        vlay.setSpacing(10)
+
+        # Scale to fit screen (max 1200×800), no upscaling if image is smaller
+        screen = _QApp.primaryScreen().availableGeometry()
+        max_w  = min(screen.width()  - 80, 1200)
+        max_h  = min(screen.height() - 160, 800)
+        if px.width() <= max_w and px.height() <= max_h:
+            big = px   # already fits, show at native resolution
+        else:
+            big = px.scaled(max_w, max_h, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+        img_lbl = QLabel()
+        img_lbl.setPixmap(big)
+        img_lbl.setAlignment(Qt.AlignCenter)
+        img_lbl.setStyleSheet(
+            "border:1px solid #30363d; border-radius:6px; background:#010409; padding:4px;"
+        )
+        vlay.addWidget(img_lbl)
+
+        # Metadata row
+        url  = entry.get("url", "")
+        ts   = entry.get("timestamp", "")[:16].replace("T", " ")
+        etype = entry.get("type", "").upper()
+        meta = QLabel(f"{ts}  •  {etype}" + (f"  •  {url}" if url else ""))
+        meta.setAlignment(Qt.AlignCenter)
+        meta.setStyleSheet("font-size:13px; color:#8b949e;")
+        meta.setWordWrap(True)
+        vlay.addWidget(meta)
+
+        # Action buttons
+        btn_row = QHBoxLayout()
+        btn_row.addStretch()
+        if url:
+            copy_btn = QPushButton("Copy URL")
+            copy_btn.setStyleSheet(
+                "QPushButton { background:#21262d; color:#58a6ff; border:1px solid #30363d; }"
+                "QPushButton:hover { background:#30363d; }"
+            )
+            copy_btn.clicked.connect(lambda: self._history_copy_url(url))
+            btn_row.addWidget(copy_btn)
+
+            open_btn = QPushButton("Open in Browser")
+            open_btn.setStyleSheet(
+                "QPushButton { background:#21262d; color:#79c0ff; border:1px solid #30363d; }"
+                "QPushButton:hover { background:#30363d; }"
+            )
+            open_btn.clicked.connect(lambda: self._history_open_browser(url))
+            btn_row.addWidget(open_btn)
+
+        close_btn = QPushButton("Close")
+        close_btn.setStyleSheet(
+            "QPushButton { background:#238636; color:#fff; border:1px solid #2ea043; }"
+            "QPushButton:hover { background:#2ea043; }"
+        )
+        close_btn.clicked.connect(dlg.accept)
+        btn_row.addWidget(close_btn)
+        btn_row.addStretch()
+        vlay.addLayout(btn_row)
+
+        dlg.exec_()
+
+    def _history_copy_url(self, url, btn=None):
+        from PyQt5.QtWidgets import QApplication
+        QApplication.clipboard().setText(url)
+        # Tray notification
+        try:
+            mw = QApplication.instance().property("main_window")
+            if mw and hasattr(mw, 'tray_icon'):
+                from PyQt5.QtWidgets import QSystemTrayIcon
+                mw.tray_icon.showMessage(
+                    "KShot — URL Copied",
+                    url[:80] + ("…" if len(url) > 80 else ""),
+                    QSystemTrayIcon.Information, 3000
+                )
+        except Exception:
+            pass
+
+    def _history_open_browser(self, url):
+        import webbrowser
+        try:
+            webbrowser.open(url)
+        except Exception as e:
+            print(f"[HISTORY] open browser error: {e}")
+
+    def _history_delete(self, entry_id):
+        self._history_mgr.delete(entry_id)
+        self._history_refresh()
+
+    def _history_clear_all(self):
+        mb = QMessageBox(self)
+        mb.setWindowTitle("Clear History")
+        mb.setText("Hapus semua history?")
+        mb.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
+        mb.setIcon(QMessageBox.Question)
+        # Fix vertical alignment of text label next to icon
+        mb.setStyleSheet(
+            mb.styleSheet() +
+            "QLabel { qproperty-alignment: AlignVCenter; min-height: 32px; }"
+        )
+        r = mb.exec_()
+        if r == QMessageBox.Yes:
+            self._history_mgr.clear()
+            self._history_refresh()
+
+    # ── General tab ──────────────────────────────────────────────────────
 
     def _tab_general(self):
         scroll = QScrollArea(); scroll.setWidgetResizable(True)
@@ -333,7 +650,8 @@ class SettingsDialog(QDialog):
         self.save_path_input = QLineEdit()
         self.save_path_input.setPlaceholderText("Default: Pictures/kshot")
         change_btn = QPushButton("Change")
-        change_btn.setFixedWidth(90)
+        change_btn.setFixedHeight(34)
+        change_btn.setMinimumWidth(110)
         change_btn.clicked.connect(self._browse_path)
         path_row.addWidget(self.save_path_input)
         path_row.addWidget(change_btn)
@@ -404,7 +722,7 @@ class SettingsDialog(QDialog):
         hint_cp = QLabel("Klik warna untuk memilih, klik 2× untuk mengedit. "
                          "Warna ini muncul sebagai pilihan di toolbar screenshot.")
         hint_cp.setWordWrap(True)
-        hint_cp.setStyleSheet("color:#9999bb; font-size:12px;")
+        hint_cp.setStyleSheet("color:#9999bb; font-size:14px;")
         vcp.addWidget(hint_cp)
 
         # Color circles grid
@@ -428,19 +746,23 @@ class SettingsDialog(QDialog):
         self._color_hex_edit.setFixedWidth(100)
 
         pick_btn = QPushButton("Pick")
-        pick_btn.setFixedWidth(70)
+        pick_btn.setFixedHeight(34)
+        pick_btn.setMinimumWidth(90)
         pick_btn.clicked.connect(self._pick_color_for_edit)
 
         update_btn = QPushButton("Update")
-        update_btn.setFixedWidth(80)
+        update_btn.setFixedHeight(34)
+        update_btn.setMinimumWidth(100)
         update_btn.clicked.connect(self._update_color)
 
         delete_btn = QPushButton("Delete")
-        delete_btn.setFixedWidth(80)
+        delete_btn.setFixedHeight(34)
+        delete_btn.setMinimumWidth(90)
         delete_btn.clicked.connect(self._delete_color)
 
         add_btn = QPushButton("+ Add")
-        add_btn.setFixedWidth(80)
+        add_btn.setFixedHeight(34)
+        add_btn.setMinimumWidth(90)
         add_btn.clicked.connect(self._add_color)
 
         edit_row.addWidget(QLabel("Hex:"))
@@ -454,10 +776,18 @@ class SettingsDialog(QDialog):
 
         lay.addWidget(grp_cp)
 
-        # ── Selection border color ──
+        # ── Selection color + Toolbar colors — 2 kolom ──────────────────
+        color_grid = QHBoxLayout()
+        color_grid.setSpacing(10)
+
+        # Kolom kiri: Warna Garis Seleksi
         grp_sel = QGroupBox("Warna Garis Seleksi")
+        grp_sel.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
         vsel = QVBoxLayout(grp_sel); vsel.setSpacing(6)
-        sel_row = QHBoxLayout()
+        sel_hint = QLabel("Border kotak seleksi\ndan handle pojok")
+        sel_hint.setAlignment(Qt.AlignCenter)
+        sel_hint.setStyleSheet("color:#9999bb; font-size:14px;")
+        sel_hint.setWordWrap(True)
         self._sel_color = self.config.get('selection_color', '#f5cb11')
         self._sel_color_btn = QPushButton()
         self._sel_color_btn.setFixedSize(36, 36)
@@ -465,32 +795,31 @@ class SettingsDialog(QDialog):
             f"background:{self._sel_color}; border:1px solid #555; border-radius:4px;")
         self._sel_color_btn.clicked.connect(self._pick_selection_color)
         self._sel_color_lbl = QLabel(self._sel_color)
+        self._sel_color_lbl.setAlignment(Qt.AlignCenter)
         self._sel_color_lbl.setStyleSheet("color:#c0c0f0; font-family:monospace;")
-        sel_hint = QLabel("Warna border kotak seleksi dan handle pojok")
-        sel_hint.setStyleSheet("color:#9999bb; font-size:12px;")
-        sel_hint.setWordWrap(True)
-        sel_row.addWidget(self._sel_color_btn)
-        sel_row.addWidget(self._sel_color_lbl)
-        sel_row.addStretch()
         vsel.addWidget(sel_hint)
-        vsel.addLayout(sel_row)
-        lay.addWidget(grp_sel)
+        vsel.addWidget(self._sel_color_btn, 0, Qt.AlignCenter)
+        vsel.addWidget(self._sel_color_lbl, 0, Qt.AlignCenter)
+        vsel.addStretch()
 
-        # ── Toolbar colors ──
+        # Kolom kanan: Warna Tombol Toolbar
         grp_tb_clr = QGroupBox("Warna Tombol Toolbar")
+        grp_tb_clr.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
         vtbc = QVBoxLayout(grp_tb_clr); vtbc.setSpacing(6)
-        tbc_hint = QLabel("Background dan warna icon pada tombol-tombol toolbar.")
+        tbc_hint = QLabel("Background dan warna\nicon pada toolbar.")
         tbc_hint.setWordWrap(True)
-        tbc_hint.setStyleSheet("color:#9999bb; font-size:12px;")
+        tbc_hint.setAlignment(Qt.AlignCenter)
+        tbc_hint.setStyleSheet("color:#9999bb; font-size:14px;")
         vtbc.addWidget(tbc_hint)
 
         self._tb_bg_color   = self.config.get('toolbar_bg_color',   '#000a52')
         self._tb_icon_color = self.config.get('toolbar_icon_color',  '#f5cb11')
 
-        tbc_row = QHBoxLayout(); tbc_row.setSpacing(12)
-        # Background color
+        tbc_row = QHBoxLayout(); tbc_row.setSpacing(16)
         bg_col = QVBoxLayout()
-        bg_lbl = QLabel("Background"); bg_lbl.setStyleSheet("color:#c0c0f0;font-size:12px;")
+        bg_lbl = QLabel("Background")
+        bg_lbl.setAlignment(Qt.AlignCenter)
+        bg_lbl.setStyleSheet("color:#c0c0f0;font-size:14px;")
         self._tb_bg_btn = QPushButton()
         self._tb_bg_btn.setFixedSize(36, 36)
         self._tb_bg_btn.setStyleSheet(
@@ -498,9 +827,11 @@ class SettingsDialog(QDialog):
         self._tb_bg_btn.clicked.connect(self._pick_toolbar_bg)
         bg_col.addWidget(bg_lbl, 0, Qt.AlignCenter)
         bg_col.addWidget(self._tb_bg_btn, 0, Qt.AlignCenter)
-        # Icon color
+
         ic_col = QVBoxLayout()
-        ic_lbl = QLabel("Icon / Teks"); ic_lbl.setStyleSheet("color:#c0c0f0;font-size:12px;")
+        ic_lbl = QLabel("Icon / Teks")
+        ic_lbl.setAlignment(Qt.AlignCenter)
+        ic_lbl.setStyleSheet("color:#c0c0f0;font-size:14px;")
         self._tb_icon_btn = QPushButton()
         self._tb_icon_btn.setFixedSize(36, 36)
         self._tb_icon_btn.setStyleSheet(
@@ -509,17 +840,20 @@ class SettingsDialog(QDialog):
         ic_col.addWidget(ic_lbl, 0, Qt.AlignCenter)
         ic_col.addWidget(self._tb_icon_btn, 0, Qt.AlignCenter)
 
+        tbc_row.addStretch()
         tbc_row.addLayout(bg_col)
         tbc_row.addLayout(ic_col)
         tbc_row.addStretch()
         vtbc.addLayout(tbc_row)
 
-        # Live preview
         self._tb_preview = QLabel("Aa  ↗  ✏")
         self._tb_preview.setAlignment(Qt.AlignCenter)
         self._update_toolbar_preview()
         vtbc.addWidget(self._tb_preview)
-        lay.addWidget(grp_tb_clr)
+
+        color_grid.addWidget(grp_sel)
+        color_grid.addWidget(grp_tb_clr)
+        lay.addLayout(color_grid)
 
         # ── Overlay opacity ──
         grp_op = QGroupBox("Opacity Area di Luar Seleksi")
@@ -553,7 +887,7 @@ class SettingsDialog(QDialog):
 
         hint_tb = QLabel("Pilih tombol mana yang tampil di toolbar screenshot.")
         hint_tb.setWordWrap(True)
-        hint_tb.setStyleSheet("color:#9999bb; font-size:12px;")
+        hint_tb.setStyleSheet("color:#9999bb; font-size:14px;")
         vtb.addWidget(hint_tb)
 
         self._ALL_BUTTONS = [
@@ -584,7 +918,7 @@ class SettingsDialog(QDialog):
         for btn_id, label, row, col in self._ALL_BUTTONS:
             cb = QCheckBox(label)
             cb.setChecked(btn_id not in hidden_now)
-            cb.setStyleSheet("color:#d0d0f0; font-size:12px;")
+            cb.setStyleSheet("color:#d0d0f0; font-size:14px;")
             tb_grid.addWidget(cb, row, col)
             self._tb_checks[btn_id] = cb
         vtb.addLayout(tb_grid)
@@ -691,7 +1025,7 @@ class SettingsDialog(QDialog):
         lay.setContentsMargins(10, 10, 10, 10); lay.setSpacing(10)
 
         lbl = QLabel("Edit the name of your captures:")
-        lbl.setStyleSheet("color:#ccc; font-size:12px;")
+        lbl.setStyleSheet("color:#ccc; font-size:14px;")
         lay.addWidget(lbl)
 
         # Token buttons grid (2 columns)
@@ -756,7 +1090,7 @@ class SettingsDialog(QDialog):
         hint = QLabel("Klik tombol di kolom <b>Key</b> lalu tekan kombinasi keyboard. "
                       "<b>Esc</b> = batal. Ikon abu-abu = tidak dapat diubah.")
         hint.setWordWrap(True)
-        hint.setStyleSheet("color:#9999bb; font-size:12px;")
+        hint.setStyleSheet("color:#9999bb; font-size:14px;")
         lay.addWidget(hint)
 
         # ── Configurable global hotkeys ──
@@ -775,7 +1109,7 @@ class SettingsDialog(QDialog):
         key_area = QLabel("Print Screen")
         key_area.setStyleSheet(
             "color:#a0a0cc; background:#252540; border:1px solid #3a3a60;"
-            "border-radius:4px; padding:3px 10px; font-family:monospace; font-size:12px;")
+            "border-radius:4px; padding:3px 10px; font-family:monospace; font-size:14px;")
         key_area.setAlignment(Qt.AlignCenter)
         key_area.setFixedWidth(180)
         key_area.setToolTip("Shortcut ini tetap, tidak dapat diubah")
@@ -809,7 +1143,7 @@ class SettingsDialog(QDialog):
             k = QLabel(key_text)
             k.setStyleSheet(
                 "color:#606080; background:#1a1a2e; border:1px solid #2a2a50;"
-                "border-radius:4px; padding:3px 10px; font-family:monospace; font-size:12px;")
+                "border-radius:4px; padding:3px 10px; font-family:monospace; font-size:14px;")
             k.setAlignment(Qt.AlignCenter)
             k.setFixedWidth(160)
             row.addWidget(d); row.addStretch(); row.addWidget(k)
@@ -1013,9 +1347,16 @@ class SettingsDialog(QDialog):
                 QMessageBox.warning(self, "Error", str(e))
 
     def _reset_config(self):
-        r = QMessageBox.question(self, "Reset Config",
-            "Reset semua settings ke default?",
-            QMessageBox.Yes | QMessageBox.No)
+        mb = QMessageBox(self)
+        mb.setWindowTitle("Reset Config")
+        mb.setText("Reset semua settings ke default?")
+        mb.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
+        mb.setIcon(QMessageBox.Question)
+        mb.setStyleSheet(
+            mb.styleSheet() +
+            "QLabel { qproperty-alignment: AlignVCenter; min-height: 32px; }"
+        )
+        r = mb.exec_()
         if r == QMessageBox.Yes:
             defaults = self.config.default_config()
             for k, v in defaults.items():

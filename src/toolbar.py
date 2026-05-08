@@ -208,7 +208,7 @@ def _make_btn_style(bg_hex='#000a52', icon_hex='#f5cb11'):
     QPushButton {{
         background-color: {bg_hex};
         color: {icon_hex};
-        border: none; border-radius: 18px;
+        border: none; border-radius: 5px;
         min-width: 36px; min-height: 36px;
         max-width: 36px; max-height: 36px;
         font-size: 17px; font-weight: normal;
@@ -226,8 +226,8 @@ def _make_label_style(bg_hex='#000a52', icon_hex='#f5cb11'):
     QLabel {{
         color: {icon_hex};
         background-color: {bg_hex};
-        border-radius: 14px;
-        font-size: 13px; font-weight: bold;
+        border-radius: 2px;
+        font-size: 15px; font-weight: bold;
         min-height: 36px; max-height: 36px;
         min-width: 28px; max-width: 28px;
         padding: 0px;
@@ -443,7 +443,7 @@ class Toolbar:
         self.action_btns['pin'] = top.add_button(
             text="📌", tooltip="Pin to Screen", callback=self.pin_to_screen)
         self.action_btns['save_upload'] = top.add_button(
-            icon=self._ico_open_app(), tooltip="Save & Upload (Enter)", callback=self.save)
+            icon=self._ico_open_app(), tooltip="Save as URL", callback=self.save)
         self.action_btns['exit'] = top.add_button(
             icon=self._ico_exit(), tooltip="Exit (Esc)", callback=self.cancel)
         self.action_btns['save_local'] = top.add_button(
@@ -460,6 +460,7 @@ class Toolbar:
             icon=self._ico_redo(), tooltip="Redo (Ctrl+Y)", callback=self.redo)
         self.move_btn = right.add_button(icon=self._ico_move(),
                                          tooltip="Move selection area",
+                                         checkable=True,
                                          callback=self.toggle_move_mode)
         for ttype, icon, tip, name in [
             (ToolType.NUMBER, self._ico_number(), "Number (N)", 'number'),
@@ -535,42 +536,31 @@ class Toolbar:
         for btn in self.tools.values(): btn.setChecked(False)
         if tool_type in self.tools: self.tools[tool_type].setChecked(True)
         self.annotation_manager.set_tool(tool_type)
-        # Update label to show relevant size for the selected tool
-        from .annotation_tools import ToolType
-        if tool_type == ToolType.TEXT:
-            self.thickness_label.setText(str(self.annotation_manager.text_font_size))
-        else:
+        self._refresh_size_label()
+        # Deactivate move mode when any annotation tool is selected
+        if hasattr(self.parent_overlay, 'is_moving_selection') and self.parent_overlay.is_moving_selection:
+            self.parent_overlay.is_moving_selection = False
+            self.parent_overlay.setCursor(Qt.ArrowCursor)
+            if self.move_btn:
+                self.move_btn.setChecked(False)
+
+    def _refresh_size_label(self):
+        if self.thickness_label:
             self.thickness_label.setText(str(self.annotation_manager.current_thickness))
 
-    def _is_text_tool(self):
-        from .annotation_tools import ToolType
-        return self.annotation_manager.current_tool == ToolType.TEXT
-
     def decrease_thickness(self):
-        if self._is_text_tool():
-            v = max(8, self.annotation_manager.text_font_size - 4)
-            self.annotation_manager.text_font_size = v
-            self.thickness_label.setText(str(v))
-            # Update live preview font size if text input is active
-            if hasattr(self.parent_overlay, 'text_active') and self.parent_overlay.text_active:
-                self.parent_overlay.update()
-        else:
-            v = max(1, self.annotation_manager.current_thickness - 1)
-            self.annotation_manager.set_thickness(v)
-            self.thickness_label.setText(str(v))
+        v = max(1, self.annotation_manager.current_thickness - 1)
+        self.annotation_manager.set_thickness(v)
+        self._refresh_size_label()
+        if hasattr(self.parent_overlay, 'text_active') and self.parent_overlay.text_active:
+            self.parent_overlay.update()
 
     def increase_thickness(self):
-        if self._is_text_tool():
-            v = min(120, self.annotation_manager.text_font_size + 4)
-            self.annotation_manager.text_font_size = v
-            self.thickness_label.setText(str(v))
-            # Update live preview font size if text input is active
-            if hasattr(self.parent_overlay, 'text_active') and self.parent_overlay.text_active:
-                self.parent_overlay.update()
-        else:
-            v = min(30, self.annotation_manager.current_thickness + 1)
-            self.annotation_manager.set_thickness(v)
-            self.thickness_label.setText(str(v))
+        v = min(50, self.annotation_manager.current_thickness + 1)
+        self.annotation_manager.set_thickness(v)
+        self._refresh_size_label()
+        if hasattr(self.parent_overlay, 'text_active') and self.parent_overlay.text_active:
+            self.parent_overlay.update()
 
     def change_thickness(self, value): self.annotation_manager.set_thickness(value)
 

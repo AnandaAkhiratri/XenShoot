@@ -20,7 +20,12 @@ class ConfigManager:
         if self.config_file.exists():
             try:
                 with open(self.config_file, 'r') as f:
-                    return json.load(f)
+                    config = json.load(f)
+                # Migrate old localhost API URL to production
+                if config.get('laravel_api_url', '').startswith('http://localhost'):
+                    config['laravel_api_url'] = 'https://kshot.cloud'
+                    self.save_config(config)
+                return config
             except:
                 return self.default_config()
         else:

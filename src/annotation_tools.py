@@ -127,42 +127,40 @@ class LineAnnotation(Annotation):
 class ArrowAnnotation(Annotation):
     def draw(self, painter, offset=QPoint(0, 0)):
         if len(self.points) >= 2:
-            # Enable antialiasing for smooth arrows
-            painter.setRenderHint(QPainter.Antialiasing, True)
-            painter.setRenderHint(QPainter.SmoothPixmapTransform, True)
-            
-            painter.setPen(QPen(self.color, self.thickness, Qt.SolidLine, Qt.SquareCap, Qt.MiterJoin))
-            painter.setBrush(QBrush(self.color))
-            
-            # Use relative coordinates directly
-            start = self.points[0]
-            end = self.points[-1]
-            
-            # Draw line
-            painter.drawLine(start, end)
-            
-            # Draw arrow head (triangle) with float precision
-            angle = math.atan2(end.y() - start.y(), end.x() - start.x())
-            arrow_size = 12
-            
-            # Use QPointF for sub-pixel precision
             from PyQt5.QtCore import QPointF
             from PyQt5.QtGui import QPolygonF
-            
-            p1 = QPointF(
-                end.x() - arrow_size * math.cos(angle - math.pi / 6),
-                end.y() - arrow_size * math.sin(angle - math.pi / 6)
-            )
-            p2 = QPointF(
-                end.x() - arrow_size * math.cos(angle + math.pi / 6),
-                end.y() - arrow_size * math.sin(angle + math.pi / 6)
-            )
-            
-            # Draw arrowhead as filled polygon with float precision
-            polygon = QPolygonF([QPointF(end), p1, p2])
-            painter.drawPolygon(polygon)
-            
-            # Reset antialiasing
+
+            painter.setRenderHint(QPainter.Antialiasing, True)
+
+            start = self.points[0]
+            end   = self.points[-1]
+
+            angle = math.atan2(end.y() - start.y(), end.x() - start.x())
+
+            # Arrow head size scales with thickness
+            head_len  = max(14, self.thickness * 3)
+            head_half = math.pi / 6   # 30°
+
+            tip   = QPointF(end)
+            p1    = QPointF(tip.x() - head_len * math.cos(angle - head_half),
+                            tip.y() - head_len * math.sin(angle - head_half))
+            p2    = QPointF(tip.x() - head_len * math.cos(angle + head_half),
+                            tip.y() - head_len * math.sin(angle + head_half))
+
+            # Line ends at base of arrowhead (not tip) to avoid protrusion
+            base  = QPointF((p1.x() + p2.x()) / 2, (p1.y() + p2.y()) / 2)
+
+            # Draw shaft — FlatCap gives clean flat tail end
+            painter.setPen(QPen(self.color, self.thickness, Qt.SolidLine,
+                                Qt.FlatCap, Qt.RoundJoin))
+            painter.setBrush(Qt.NoBrush)
+            painter.drawLine(QPointF(start), base)
+
+            # Draw filled arrowhead — no pen stroke to avoid extra edges
+            painter.setPen(Qt.NoPen)
+            painter.setBrush(QBrush(self.color))
+            painter.drawPolygon(QPolygonF([tip, p1, p2]))
+
             painter.setRenderHint(QPainter.Antialiasing, False)
 
 class PenAnnotation(Annotation):
@@ -207,88 +205,114 @@ class TextAnnotation(Annotation):
             painter.setRenderHint(QPainter.Antialiasing, True)
             painter.setRenderHint(QPainter.TextAntialiasing, True)
             painter.setRenderHint(QPainter.SmoothPixmapTransform, True)
-            
-            painter.setPen(QPen(self.color))
+
             font = QFont("Arial", self.font_size, QFont.Normal)
             painter.setFont(font)
-            painter.drawText(self.position, self.text)
-            
+            from PyQt5.QtGui import QFontMetrics
+            fm = QFontMetrics(font)
+            # Draw at same baseline as live preview (position.y + ascent)
+            painter.setPen(QPen(self.color))
+            painter.drawText(self.position.x(), self.position.y() + fm.ascent(), self.text)
+
             painter.setRenderHint(QPainter.Antialiasing, False)
             painter.setRenderHint(QPainter.TextAntialiasing, False)
 
 class NumberAnnotation(Annotation):
-    """Number counter annotation - displays numbered circles"""
+    """Number pin marker — circle with optional triangle pointer on drag."""
     def __init__(self, tool_type, color, thickness, number):
         super().__init__(tool_type, color, thickness)
         self.number = number
-        self.position = QPoint()
-        
+        self.position = QPoint()   # circle center (click start)
+        self.pointer_end = None    # triangle tip (drag end), None = no pointer
+
     def draw(self, painter, offset=QPoint(0, 0)):
-        if not self.position.isNull():
-            # Enable antialiasing for smooth circle
-            painter.save()
-            painter.setRenderHint(QPainter.Antialiasing, True)
-            painter.setRenderHint(QPainter.SmoothPixmapTransform, True)
-            
-            # Draw circle with number inside
-            circle_radius = 18
-            
-            # Draw filled circle with smooth edges
-            painter.setPen(QPen(self.color, 2, Qt.SolidLine, Qt.SquareCap, Qt.MiterJoin))
-            painter.setBrush(QBrush(self.color, Qt.SolidPattern))
-            
-            # Use QRectF for sub-pixel precision (floating point)
-            from PyQt5.QtCore import QRectF, QPointF
-            circle_rect = QRectF(
-                self.position.x() - circle_radius, 
-                self.position.y() - circle_radius,
-                circle_radius * 2.0, 
-                circle_radius * 2.0
-            )
-            painter.drawEllipse(circle_rect)
-            
-            # Draw navy blue number in center with antialiasing
-            painter.setPen(QPen(QColor(0, 10, 82)))
-            font = QFont("Arial", 14, QFont.Bold)
-            painter.setFont(font)
-            
-            # Calculate text rect for centering
-            text = str(self.number)
-            text_rect = QRect(
-                self.position.x() - circle_radius,
-                self.position.y() - circle_radius,
-                circle_radius * 2,
-                circle_radius * 2
-            )
-            painter.drawText(text_rect, Qt.AlignCenter, text)
-            
-            # Reset brush and restore painter state
-            painter.setBrush(Qt.NoBrush)
-            painter.restore()
+        if self.position.isNull():
+            return
+        from PyQt5.QtCore import QRectF, QPointF
+        from PyQt5.QtGui import QPolygonF
+
+        painter.save()
+        painter.setRenderHint(QPainter.Antialiasing, True)
+
+        circle_radius = max(10, self.thickness + 9)
+        font_size = max(8, int(circle_radius * 0.7))
+
+        cx, cy = float(self.position.x()), float(self.position.y())
+
+        # ── Draw triangle pointer if dragged far enough ──────────────────
+        if self.pointer_end and not self.pointer_end.isNull():
+            dx = self.pointer_end.x() - cx
+            dy = self.pointer_end.y() - cy
+            dist = math.hypot(dx, dy)
+
+            if dist > circle_radius + 4:
+                import math as _m
+                angle = _m.atan2(dy, dx)
+                half_w = _m.pi / 5   # 36° half-width of triangle base
+
+                # Two points on circle edge
+                base1 = QPointF(cx + circle_radius * _m.cos(angle - half_w),
+                                cy + circle_radius * _m.sin(angle - half_w))
+                base2 = QPointF(cx + circle_radius * _m.cos(angle + half_w),
+                                cy + circle_radius * _m.sin(angle + half_w))
+                tip   = QPointF(float(self.pointer_end.x()), float(self.pointer_end.y()))
+
+                painter.setPen(Qt.NoPen)
+                painter.setBrush(QBrush(self.color))
+                painter.drawPolygon(QPolygonF([base1, base2, tip]))
+
+        # ── Draw filled circle with white border ─────────────────────────
+        border_w = max(2, circle_radius // 8)
+        painter.setPen(QPen(QColor(255, 255, 255), border_w))
+        painter.setBrush(QBrush(self.color))
+        painter.drawEllipse(QRectF(cx - circle_radius, cy - circle_radius,
+                                   circle_radius * 2, circle_radius * 2))
+
+        # ── Draw number ───────────────────────────────────────────────────
+        painter.setPen(QPen(QColor(255, 255, 255)))
+        font = QFont("Arial", font_size, QFont.Bold)
+        painter.setFont(font)
+        painter.drawText(QRect(int(cx - circle_radius), int(cy - circle_radius),
+                               circle_radius * 2, circle_radius * 2),
+                         Qt.AlignCenter, str(self.number))
+
+        painter.restore()
 
 class BlurAnnotation(Annotation):
     """Blur/pixelate annotation for censoring sensitive information"""
     def __init__(self, tool_type, color, thickness):
         super().__init__(tool_type, color, thickness)
         self.blurred_pixmap = None  # Store the blurred result
-    
+
+    def _overlay_alpha(self):
+        """Opacity of dark overlay: size 1→5, size 50→255 (fully black)"""
+        return int(5 + (self.thickness - 1) * (250 / 49))
+
     def draw(self, painter, offset=QPoint(0, 0)):
         if len(self.points) >= 2:
-            # Use relative coordinates directly
             rect = QRect(self.points[0], self.points[-1]).normalized()
-            
-            # Safety check - prevent huge blur areas
             if rect.width() > 2000 or rect.height() > 2000:
                 return
-            
-            # If we have a pre-blurred pixmap, draw it
+
             if self.blurred_pixmap and not self.blurred_pixmap.isNull():
+                # Draw pixelated base
                 painter.drawPixmap(rect, self.blurred_pixmap)
             else:
-                # Preview mode - just show simple rectangle outline (like drawing a square)
-                painter.setPen(QPen(QColor(52, 152, 219), 2))  # Blue outline
-                painter.setBrush(Qt.NoBrush)  # No fill - empty rectangle
-                painter.drawRect(rect)
+                # Preview: show darkening rectangle while dragging
+                pass
+
+            # Dark overlay — opacity proportional to size
+            alpha = self._overlay_alpha()
+            painter.save()
+            painter.setPen(Qt.NoPen)
+            painter.setBrush(QColor(0, 0, 0, alpha))
+            painter.drawRect(rect)
+            painter.restore()
+
+            # Border preview
+            painter.setPen(QPen(QColor(52, 152, 219, 180), 1))
+            painter.setBrush(Qt.NoBrush)
+            painter.drawRect(rect)
 
 class InvertAnnotation(Annotation):
     """Invert colors annotation - inverts RGB colors like Flameshot"""
@@ -320,8 +344,7 @@ class AnnotationManager:
         self.current_annotation = None
         self.current_tool = ToolType.SELECT
         self.current_color = QColor(245, 203, 17)  # Yellow/Gold default (#f5cb11)
-        self.current_thickness = 3
-        self.text_font_size = 32   # font size (pt) for text annotations, adjusted by +/-
+        self.current_thickness = 3   # unified size 1-50 for all tools
         self.undo_stack = []
         self.is_drawing = False
         self.number_counter = 1  # Counter for number annotations
@@ -333,8 +356,13 @@ class AnnotationManager:
     def set_color(self, color):
         self.current_color = color
         
+    @property
+    def text_font_size(self):
+        """Derive font size from current_thickness: size 1→10pt, size 50→108pt"""
+        return max(8, self.current_thickness * 2 + 8)
+
     def set_thickness(self, thickness):
-        self.current_thickness = thickness
+        self.current_thickness = max(1, min(50, thickness))
         
     def mouse_press(self, pos, offset):
         if self.current_tool == ToolType.SELECT:
@@ -372,18 +400,12 @@ class AnnotationManager:
             self.is_drawing = True
             return  # Don't add point, just wait for text input
         elif self.current_tool == ToolType.NUMBER:
-            # Number tool - create numbered circle
-            print(f"[DEBUG] Creating NUMBER annotation #{self.number_counter}")
-            self.current_annotation = NumberAnnotation(self.current_tool, self.current_color, self.current_thickness, self.number_counter)
+            self.current_annotation = NumberAnnotation(
+                self.current_tool, self.current_color,
+                self.current_thickness, self.number_counter)
             self.current_annotation.position = relative_pos
-            print(f"[DEBUG] NUMBER position set to: ({relative_pos.x()}, {relative_pos.y()})")
-            self.annotations.append(self.current_annotation)
-            print(f"[DEBUG] NUMBER annotation appended, total annotations: {len(self.annotations)}")
-            self.number_counter += 1
-            self.undo_stack.clear()
-            self.current_annotation = None
-            self.is_drawing = False
-            return
+            self.is_drawing = True
+            return  # Wait for release/drag
             
         if self.current_annotation:
             # Store in relative coordinates (relative to selection area)
@@ -394,6 +416,10 @@ class AnnotationManager:
         if self.is_drawing and self.current_annotation:
             # Convert to relative coordinates
             relative_pos = pos - offset
+            # Number tool: update pointer tip on drag
+            if self.current_tool == ToolType.NUMBER:
+                self.current_annotation.pointer_end = relative_pos
+                return
             if self.current_tool in [ToolType.PEN, ToolType.HIGHLIGHTER]:
                 self.current_annotation.add_point(relative_pos)
             elif len(self.current_annotation.points) > 0:
@@ -408,6 +434,14 @@ class AnnotationManager:
             # TEXT annotations are finalized via add_text_annotation(), not here
             if self.current_tool == ToolType.TEXT:
                 return
+            # NUMBER: commit and increment counter
+            if self.current_tool == ToolType.NUMBER:
+                self.annotations.append(self.current_annotation)
+                self.undo_stack.clear()
+                self.number_counter += 1
+                self.current_annotation = None
+                self.is_drawing = False
+                return
             self.annotations.append(self.current_annotation)
             self.undo_stack.clear()
             self.current_annotation = None
@@ -417,6 +451,8 @@ class AnnotationManager:
         """Add text to current text annotation and finalize it"""
         if self.current_annotation and isinstance(self.current_annotation, TextAnnotation):
             self.current_annotation.text = text
+            # Always use the latest font size (user may have changed it with wheel)
+            self.current_annotation.font_size = self.text_font_size
             self.annotations.append(self.current_annotation)
             self.undo_stack.clear()
             self.current_annotation = None
@@ -441,29 +477,24 @@ class AnnotationManager:
         # Extract the region to blur
         region = source_pixmap.copy(rect)
         
-        # Create blur by scaling down then up with smooth transformation
-        blur_strength = 20  # Reduced from 80 to 20 for more moderate blur
-        
+        # Blur strength scales with thickness: size 1→4, size 50→30
+        blur_strength = max(4, int(4 + blur_annotation.thickness * 0.52))
+
         if region.width() > blur_strength and region.height() > blur_strength:
-            # Scale down (creates pixelation/blur effect)
             small = region.scaled(
                 max(1, region.width() // blur_strength),
                 max(1, region.height() // blur_strength),
                 Qt.IgnoreAspectRatio,
-                Qt.SmoothTransformation
+                Qt.FastTransformation
             )
-            
-            # Scale back up to original size (smooths it out into blur)
             blurred = small.scaled(
                 region.width(),
                 region.height(),
                 Qt.IgnoreAspectRatio,
                 Qt.SmoothTransformation
             )
-            
             blur_annotation.blurred_pixmap = blurred
         else:
-            # For very small regions, just use solid color
             blur_annotation.blurred_pixmap = region
     
     def apply_invert_to_annotation(self, invert_annotation, source_pixmap):

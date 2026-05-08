@@ -55,38 +55,69 @@ try:
 
     # CRITICAL: Prevent app from quitting when screenshot overlay closes
     app.setQuitOnLastWindowClosed(False)
-    
-    # Create main window (system tray)
+
+    # ── Auth flow ─────────────────────────────────────────────────────────────
+    from src.config_manager import ConfigManager
+    from src.auth_manager   import AuthManager
+    from src.splash_dialog  import SplashDialog
+    from src.setup_wizard   import SetupWizard
+
+    config       = ConfigManager()
+    auth_manager = AuthManager(config)
+
+    # Show splash + check credentials in background
+    splash = SplashDialog(auth_manager)
+    splash.show()
+    app.processEvents()
+    splash.start_check()
+
+    auth_ok    = [False]
+    auth_error = [""]
+
+    def _on_auth_result(ok, err):
+        auth_ok[0]    = ok
+        auth_error[0] = err
+
+    splash.auth_result.connect(_on_auth_result)
+    splash.exec_()   # blocks until splash closes
+
+    # If not authenticated, show setup wizard
+    if not auth_ok[0]:
+        wizard = SetupWizard(auth_manager, config, prefill_error=auth_error[0])
+        screen = QApplication.primaryScreen().availableGeometry()
+        wizard.adjustSize()
+        wizard.move(
+            screen.center().x() - wizard.width()  // 2,
+            screen.center().y() - wizard.height() // 2,
+        )
+        result = wizard.exec_()
+        if result != wizard.Accepted:
+            sys.exit(0)   # user closed wizard → quit
+
+    # ── Main app ──────────────────────────────────────────────────────────────
     print("Creating main window...")
-    main_window = MainWindow()
-    app.setProperty("main_window", main_window)   # accessible from overlay
+    main_window = MainWindow(config=config)
+    app.setProperty("main_window", main_window)
     print("Main window created!")
-    
-    # Setup hotkey manager
+
     print("Setting up hotkey manager...")
     hotkey_manager = HotkeyManager(main_window)
-    
-    # Connect error signal
+
     def show_hotkey_error(error_msg):
         print(f"[ERROR] Hotkey manager: {error_msg}")
-        # Show warning but don't block app
-        QMessageBox.warning(None, "Hotkey Warning", 
+        QMessageBox.warning(None, "Hotkey Warning",
             f"{error_msg}\n\nYou can still use:\n"
             "- Right-click tray icon\n"
             "- System tray menu")
-    
+
     hotkey_manager.error_signal.connect(show_hotkey_error)
     hotkey_manager.start()
-    main_window.hotkey_manager = hotkey_manager   # allow settings to reload hotkeys
+    main_window.hotkey_manager = hotkey_manager
     print("Hotkey manager started!")
-    
-    print("\nXenShoot is running!")
-    print("Look for the blue circle icon in system tray (bottom-right)")
-    print("\nTo test:")
-    print("1. Press Ctrl+Shift+A (or Ctrl+Shift+F)")
-    print("2. Or right-click tray icon -> Capture Screenshot")
+
+    print("\nKShot is running!")
     print("-" * 50)
-    
+
     sys.exit(app.exec_())
     
 except Exception as e:

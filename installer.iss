@@ -41,8 +41,154 @@ Name: "{group}\{cm:UninstallProgram,{#MyAppName}}"; Filename: "{uninstallexe}"
 Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
 
 [Registry]
-; Auto-start with Windows
 Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "{#MyAppName}"; ValueData: """{app}\{#MyAppExeName}"""; Flags: uninsdeletevalue; Tasks: startupicon
 
 [Run]
 Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent
+
+; ── Custom wizard pages untuk akun KShot ─────────────────────────────────────
+[Code]
+
+var
+  AccountPage: TWizardPage;
+  UsernameEdit: TEdit;
+  PasswordEdit: TEdit;
+  UsernameLabel: TLabel;
+  PasswordLabel: TLabel;
+  HintLabel: TLabel;
+
+// ── Buat halaman akun setelah "Select Destination" ────────────────────────────
+procedure InitializeWizard;
+begin
+  AccountPage := CreateCustomPage(
+    wpSelectDir,
+    'Akun KShot',
+    'Masukkan username dan password yang diberikan oleh admin kamu.'
+  );
+
+  HintLabel := TLabel.Create(AccountPage);
+  HintLabel.Parent  := AccountPage.Surface;
+  HintLabel.Caption :=
+    'Akun ini digunakan untuk menghubungkan screenshot kamu ke server KShot.' + #13#10 +
+    'Username dan password diberikan oleh administrator.';
+  HintLabel.Left   := 0;
+  HintLabel.Top    := 0;
+  HintLabel.Width  := AccountPage.SurfaceWidth;
+  HintLabel.Height := 40;
+  HintLabel.AutoSize := False;
+  HintLabel.WordWrap := True;
+
+  UsernameLabel := TLabel.Create(AccountPage);
+  UsernameLabel.Parent  := AccountPage.Surface;
+  UsernameLabel.Caption := 'Username:';
+  UsernameLabel.Left    := 0;
+  UsernameLabel.Top     := 56;
+  UsernameLabel.Font.Style := [fsBold];
+
+  UsernameEdit := TEdit.Create(AccountPage);
+  UsernameEdit.Parent := AccountPage.Surface;
+  UsernameEdit.Left   := 0;
+  UsernameEdit.Top    := 74;
+  UsernameEdit.Width  := AccountPage.SurfaceWidth;
+  UsernameEdit.TabOrder := 0;
+
+  PasswordLabel := TLabel.Create(AccountPage);
+  PasswordLabel.Parent  := AccountPage.Surface;
+  PasswordLabel.Caption := 'Password:';
+  PasswordLabel.Left    := 0;
+  PasswordLabel.Top     := 110;
+  PasswordLabel.Font.Style := [fsBold];
+
+  PasswordEdit := TEdit.Create(AccountPage);
+  PasswordEdit.Parent       := AccountPage.Surface;
+  PasswordEdit.Left         := 0;
+  PasswordEdit.Top          := 128;
+  PasswordEdit.Width        := AccountPage.SurfaceWidth;
+  PasswordEdit.PasswordChar := '*';
+  PasswordEdit.TabOrder     := 1;
+end;
+
+// ── Validasi dan simpan credentials sebelum lanjut ───────────────────────────
+function NextButtonClick(CurPageID: Integer): Boolean;
+var
+  KShotDir:     string;
+  PendingFile:  string;
+  JsonContent:  string;
+  Username:     string;
+  Password:     string;
+begin
+  Result := True;
+
+  if CurPageID = AccountPage.ID then
+  begin
+    Username := Trim(UsernameEdit.Text);
+    Password := PasswordEdit.Text;
+
+    // Validasi kosong
+    if Username = '' then
+    begin
+      MsgBox('Username tidak boleh kosong.', mbError, MB_OK);
+      Result := False;
+      Exit;
+    end;
+
+    if Password = '' then
+    begin
+      MsgBox('Password tidak boleh kosong.', mbError, MB_OK);
+      Result := False;
+      Exit;
+    end;
+
+    // Simpan ke %USERPROFILE%\.KShot\pending_credentials.json
+    // App akan membacanya saat pertama kali dijalankan
+    KShotDir    := GetEnv('USERPROFILE') + '\.KShot';
+    PendingFile := KShotDir + '\pending_credentials.json';
+
+    ForceDirectories(KShotDir);
+
+    // Build JSON (username hanya alfanumerik+underscore, password di-escape minimal)
+    JsonContent := '{"username":"' + Username + '","password":"' + Password + '"}';
+
+    if not SaveStringToFile(PendingFile, JsonContent, False) then
+    begin
+      MsgBox(
+        'Gagal menyimpan informasi akun.' + #13#10 +
+        'Pastikan kamu memiliki izin tulis ke folder: ' + KShotDir,
+        mbError, MB_OK
+      );
+      Result := False;
+      Exit;
+    end;
+  end;
+end;
+
+// ── Bersihkan pending file jika installer dibatalkan ─────────────────────────
+procedure CancelButtonClick(CurPageID: Integer; var Cancel, Confirm: Boolean);
+var
+  PendingFile: string;
+begin
+  PendingFile := GetEnv('USERPROFILE') + '\.KShot\pending_credentials.json';
+  if FileExists(PendingFile) then
+    DeleteFile(PendingFile);
+end;
+
+// ── Hapus session saat uninstall ─────────────────────────────────────────────
+procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
+var
+  KShotDir:    string;
+  SessionFile: string;
+  PendingFile: string;
+begin
+  if CurUninstallStep = usPostUninstall then
+  begin
+    KShotDir    := GetEnv('USERPROFILE') + '\.KShot';
+    SessionFile := KShotDir + '\session.json';
+    PendingFile := KShotDir + '\pending_credentials.json';
+
+    if FileExists(SessionFile) then
+      DeleteFile(SessionFile);
+
+    if FileExists(PendingFile) then
+      DeleteFile(PendingFile);
+  end;
+end;

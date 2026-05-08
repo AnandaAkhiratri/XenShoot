@@ -99,11 +99,12 @@ class PinnedImageWindow(QLabel):
             super().keyPressEvent(event)
 
 class ScreenshotOverlay(QWidget):
-    def __init__(self, config, fullscreen=False):
+    def __init__(self, config, fullscreen=False, uploader=None):
         super().__init__()
         self.config = config
         self.fullscreen_mode = fullscreen
         self.main_window = None   # set by MainWindow after creation
+        self._injected_uploader = uploader
         self.init_ui()
         self.init_variables()
         
@@ -145,7 +146,7 @@ class ScreenshotOverlay(QWidget):
         self.text_cursor = 0            # cursor position inside text_buffer
         self.text_pos = QPoint()        # screen position where text is drawn
         self.text_color = QColor(255, 255, 255)
-        self.uploader = ImageUploader(self.config)
+        self.uploader = self._injected_uploader or ImageUploader(self.config)
         
     def _get_handle_at(self, pos):
         """Return handle id ('tl','tr','bl','br') if pos is within hit-area of a corner handle, else None."""
@@ -393,6 +394,18 @@ class ScreenshotOverlay(QWidget):
             self.annotation_manager.mouse_move(event.pos(), self.selection_rect.topLeft())
             self.update()
             
+    def wheelEvent(self, event):
+        """Mouse wheel scrolls size up/down when in editing mode."""
+        if self.is_editing and self.toolbar:
+            delta = event.angleDelta().y()
+            if delta > 0:
+                self.toolbar.increase_thickness()
+            elif delta < 0:
+                self.toolbar.decrease_thickness()
+            event.accept()
+        else:
+            event.ignore()
+
     def mouseReleaseEvent(self, event):
         if event.button() == Qt.LeftButton:
             self._move_dragging = False
@@ -570,12 +583,10 @@ class ScreenshotOverlay(QWidget):
                 QLabel {{
                     background-color: {bg};
                     color: {ico};
-                    padding: 4px 10px;
-                    border-radius: 3px;
+                    padding: 7px 5px;
+                    border-radius: 15px;
                     font-family: Poppins, sans-serif;
-                    font-size: 12px;
-                    font-weight: 600;
-                    border: 1px solid {ico};
+                    font-size: 13px;
                 }}
             """)
             self.size_indicator.setWindowFlags(Qt.Tool | Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint)
@@ -723,6 +734,9 @@ class ScreenshotOverlay(QWidget):
                 url = None
             
             if url:
+                # Save to local history
+                self._upload_for_history(final_pixmap, "upload", url=url)
+
                 # Copy to clipboard if enabled
                 auto_copy = self.config.get('auto_copy_url', True)
                 if auto_copy:
@@ -799,7 +813,10 @@ class ScreenshotOverlay(QWidget):
         return filepath
 
     def save_to_local_only(self):
-        """Save screenshot with annotations — user picks save location via dialog"""
+        """Save screenshot with annotations.
+        - use_fixed_path=True  → langsung simpan ke folder yang sudah diset di Settings (tanpa dialog)
+        - use_fixed_path=False → tampilkan dialog pilih lokasi simpan (default)
+        """
         self._commit_pending_text()
         try:
             final_pixmap = QPixmap(self.selection_rect.size())
@@ -809,44 +826,64 @@ class ScreenshotOverlay(QWidget):
             self.annotation_manager.draw(painter, QPoint(0, 0))
             painter.end()
 
-            # Hide overlay before showing dialog
-            self.hide()
-            if self.toolbar:
-                self.toolbar.hide()
-            if self.size_indicator:
-                self.size_indicator.hide()
-
-            from PyQt5.QtWidgets import QFileDialog
             from datetime import datetime
             from pathlib import Path
+            import os as _os
 
-            default_dir = self.config.get('local_save_path', '') or str(Path.home() / "Pictures" / "KShot")
             ext      = self.config.get('preferred_extension', 'png').lower().lstrip('.')
             template = self.config.get('filename_template', 'KShot_%Y-%m-%d_%H-%M-%S')
             try:
                 base_name = datetime.now().strftime(template)
             except Exception:
                 base_name = f"KShot_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-            default_path = str(Path(default_dir) / f"{base_name}.{ext}")
 
-            # Build filter with preferred extension first
-            if ext in ('jpg', 'jpeg'):
-                filt = "JPEG Image (*.jpg *.jpeg);;PNG Image (*.png);;All Files (*)"
-            else:
-                filt = "PNG Image (*.png);;JPEG Image (*.jpg *.jpeg);;All Files (*)"
+            use_fixed = self.config.get('use_fixed_path', False)
 
-            filepath, _ = QFileDialog.getSaveFileName(
-                None, "Simpan Screenshot", default_path, filt
-            )
+            # Hide overlay & toolbar before any save action
+            self.hide()
+            if self.toolbar:
+                self.toolbar.hide()
+            if self.size_indicator:
+                self.size_indicator.hide()
 
-            if filepath:
-                if not any(filepath.lower().endswith(e) for e in ('.png', '.jpg', '.jpeg')):
-                    filepath += f'.{ext}'
-                fmt     = "JPEG" if filepath.lower().endswith(('.jpg', '.jpeg')) else "PNG"
+            if use_fixed:
+                # ── Fixed path: simpan langsung tanpa dialog ──────────────
+                save_dir = self.config.get('local_save_path', '') or str(Path.home() / "Pictures" / "KShot")
+                _os.makedirs(save_dir, exist_ok=True)
+                filepath = str(Path(save_dir) / f"{base_name}.{ext}")
+                fmt     = "JPEG" if ext in ('jpg', 'jpeg') else "PNG"
                 quality = self.config.get('jpeg_quality', 90) if fmt == "JPEG" else -1
                 final_pixmap.save(filepath, fmt, quality)
-                # Upload to API for history in background
-                self._upload_for_history(final_pixmap)
+                self._upload_for_history(final_pixmap, "local", filename=_os.path.basename(filepath))
+                mw = getattr(self, 'main_window', None)
+                if mw and hasattr(mw, 'show_tray_message'):
+                    from PyQt5.QtCore import QTimer
+                    _fp = filepath
+                    QTimer.singleShot(300, lambda: mw.show_tray_message("KShot — Saved", _fp))
+            else:
+                # ── Dialog: user pilih lokasi ─────────────────────────────
+                from PyQt5.QtWidgets import QFileDialog
+
+                default_dir  = self.config.get('local_save_path', '') or str(Path.home() / "Pictures" / "KShot")
+                default_path = str(Path(default_dir) / f"{base_name}.{ext}")
+
+                if ext in ('jpg', 'jpeg'):
+                    filt = "JPEG Image (*.jpg *.jpeg);;PNG Image (*.png);;All Files (*)"
+                else:
+                    filt = "PNG Image (*.png);;JPEG Image (*.jpg *.jpeg);;All Files (*)"
+
+                filepath, _ = QFileDialog.getSaveFileName(
+                    None, "Simpan Screenshot", default_path, filt
+                )
+
+                if filepath:
+                    if not any(filepath.lower().endswith(e) for e in ('.png', '.jpg', '.jpeg')):
+                        filepath += f'.{ext}'
+                    fmt     = "JPEG" if filepath.lower().endswith(('.jpg', '.jpeg')) else "PNG"
+                    quality = self.config.get('jpeg_quality', 90) if fmt == "JPEG" else -1
+                    final_pixmap.save(filepath, fmt, quality)
+                    self._upload_for_history(final_pixmap, "local", filename=_os.path.basename(filepath))
+
         except Exception as e:
             print(f"Error saving local: {e}")
             import traceback; traceback.print_exc()
@@ -876,22 +913,34 @@ class ScreenshotOverlay(QWidget):
 
             print("[SCREENSHOT] Copied to clipboard!")
 
-            # Upload to API for history in background
-            self._upload_for_history(final_pixmap)
+            # Save to history (upload in background for URL tracking)
+            self._upload_for_history(final_pixmap, "clipboard")
 
-            # Close overlay after copy
+            # Close overlay first, then notify via main_window after short delay
+            mw = getattr(self, 'main_window', None)
             self.cancel_capture()
+            if mw and hasattr(mw, 'show_tray_message'):
+                from PyQt5.QtCore import QTimer
+                QTimer.singleShot(300, lambda: mw.show_tray_message(
+                    "KShot", "Image copied to clipboard!"
+                ))
             
         except Exception as e:
             print(f"[ERROR] Failed to copy to clipboard: {e}")
             import traceback
             traceback.print_exc()
     
-    def _upload_for_history(self, pixmap):
-        """Upload screenshot to API in background thread for history tracking."""
+    def _upload_for_history(self, pixmap, entry_type="upload", url="", filename=""):
+        """Save screenshot to local history JSON and (if no URL) upload to API in background."""
         import threading
         from PyQt5.QtCore import QBuffer, QIODevice
 
+        # If we already have a URL (e.g. from finish_capture), just save to history
+        if url:
+            self._write_history(pixmap, entry_type, url, filename)
+            return
+
+        # Otherwise upload first, then save
         def _do_upload():
             try:
                 buf = QBuffer()
@@ -899,20 +948,23 @@ class ScreenshotOverlay(QWidget):
                 pixmap.save(buf, "PNG")
                 image_data = buf.data().data()
                 buf.close()
-                url = self.uploader.upload(image_data)
-                # if url:
-                #     mw = getattr(self, 'main_window', None)
-                #     if mw and hasattr(mw, 'tray_icon'):
-                #         from PyQt5.QtWidgets import QSystemTrayIcon
-                #         mw.tray_icon.showMessage(
-                #             "KShot — Saved to History",
-                #             f"URL: {url}",
-                #             QSystemTrayIcon.NoIcon, 3000
-                #         )
+                result_url = self.uploader.upload(image_data)
+                self._write_history(pixmap, entry_type, result_url or "", filename)
             except Exception as e:
                 print(f"[HISTORY] Upload failed: {e}")
+                self._write_history(pixmap, entry_type, "", filename)
 
         threading.Thread(target=_do_upload, daemon=True).start()
+
+    @staticmethod
+    def _write_history(pixmap, entry_type, url="", filename=""):
+        """Write one entry to the local history JSON (runs in any thread)."""
+        try:
+            from .history_manager import HistoryManager
+            HistoryManager().add(pixmap, entry_type=entry_type, url=url, filename=filename)
+            print(f"[HISTORY] Saved: type={entry_type}, url={url[:60] if url else '(none)'}")
+        except Exception as e:
+            print(f"[HISTORY] Write failed: {e}")
 
     def pin_to_screen(self):
         """Pin screenshot to screen (keep it visible)"""
@@ -955,12 +1007,9 @@ class ScreenshotOverlay(QWidget):
             self.setCursor(Qt.CrossCursor)  # Back to crosshair
             print("[SCREENSHOT] Move mode disabled")
         
-        # Update toolbar button visual state if needed
+        # Update toolbar button visual state
         if self.toolbar and hasattr(self.toolbar, 'move_btn'):
-            self.toolbar.move_btn.setStyleSheet(
-                self.toolbar.move_btn.styleSheet() + 
-                (" border: 2px solid rgb(245, 203, 17);" if self.is_moving_selection else "")
-            )
+            self.toolbar.move_btn.setChecked(self.is_moving_selection)
     
     def open_with_app(self):
         """Save screenshot and open with selected application"""
